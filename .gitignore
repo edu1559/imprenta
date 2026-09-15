@@ -1,0 +1,16 @@
+
+sql/ 
+/backup/ 
+*.bak 
+archivosSistema.txt 
+avance.txt 
+merendero.txt 
+pomodoros 
+documentacion/*.txt 
+administracion/adminProductos1.php 
+contactos/contactos1.php 
+pedidos/pedidos1.php 
+pedidos/nuevoPedido1.php 
+pedidos/modalOrden1.php 
+finanzas/cierre1.php 
+index1.php 

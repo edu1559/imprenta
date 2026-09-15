@@ -1,0 +1,39 @@
+<?php
+
+// Verificamos si se ha enviado un archivo
+		if (isset($_FILES['archivo'])) {
+
+    // Obtenemos el nombre del archivo
+    $nombreArchivo = $_FILES['archivo']['name'];
+
+    // Obtenemos el tamaño del archivo
+    $tamanioArchivo = $_FILES['archivo']['size'];
+
+    // Obtenemos el tipo de archivo
+    $tipoArchivo = $_FILES['archivo']['type'];
+
+    // Verificamos si el archivo es válido
+    if (is_uploaded_file($_FILES['archivo']['tmp_name'])) {
+
+    // Movemos el archivo a la carpeta de destino
+       move_uploaded_file($_FILES['archivo']['tmp_name'], 'subidas/' . $nombreArchivo);
+      
+	  // Imprimimos un mensaje de éxito
+	  
+	  
+        echo 'El archivo se ha subido correctamente. <br>';
+		echo 'El nombre del archivo es:'. $nombreArchivo. '<br>';
+		echo 'El tamaño del archivo es:'. $tamanioArchivo. '<br>';
+		echo 'El tipo del archivo es:'. $tipoArchivo. '<br>';	
+		print_r($_FILES);
+    
+	} else {
+
+        // Imprimimos un mensaje de error
+        echo 'El archivo no es válido.';
+        
+        
+        
+    }
+	};
+?>
