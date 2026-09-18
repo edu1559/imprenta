@@ -14,7 +14,7 @@ if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
 // Preparamos la consulta para evitar inyecciones SQL
 $sql = "SELECT id, apellido, nombre, telefono, correo, tipoFactura, cuit, fechaCarga, tipo, notas 
         FROM contactos 
-        WHERE id = ?";
+        WHERE id = ? ";
 
 $stmt = mysqli_prepare($conn, $sql);
 mysqli_stmt_bind_param($stmt, "i", $idContacto);
@@ -98,13 +98,13 @@ mysqli_stmt_close($stmt);
         <div class="card-header bg-secondary text-white">
             <h5 class="mb-0 text-center">Pedidos realizados</h5>
         </div>
-        <div class="card-body">
+        <div class="card-body"  style="max-height: 400px; overflow-y: scroll;">
             <?php
             /* Busco los datos de los pedidos */
-            $sql_pedidos = "SELECT id, entrada, detalle, monto, montoPagado, estadoEntrega, estadoPago, estadoProduccion, idUsuario 
-                            FROM pedidos 
-                            WHERE idContacto = ? 
-                            ORDER BY entrada DESC"; // Ordenamos por fecha de entrada para ver los más recientes primero
+            $sql_pedidos = "SELECT id, entrada, detalle, monto, montoPagado, estadoEntrega, estadoPago, estadoProduccion, idUsuario
+                            FROM pedidos
+                            WHERE idContacto = ?
+                            ORDER BY entrada DESC "; // Ordenamos por fecha de entrada para ver los más recientes primero
             //echo $sql_pedidos;
             $stmt_pedidos = mysqli_prepare($conn, $sql_pedidos);
             mysqli_stmt_bind_param($stmt_pedidos, "i", $idContacto);

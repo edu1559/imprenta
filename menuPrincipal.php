@@ -4,7 +4,7 @@ include_once('conexion.php');
 $conn = conectar();
 
 // 1. Corregimos el ID de usuario para que use el de la sesión real
-$idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 0; // 0 para visitantes
+$idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 1; // 1 = perfil invitado
 ?>
 
 <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom shadow-sm">

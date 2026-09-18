@@ -32,8 +32,8 @@
         $sql = "insert into productos (nombre,foto,color,idCategoria,caracteristicas,enlace,orden)
                 values ('$nombre','$foto','$color',$idCategoria,'$caracteristicas','$enlace', $orden)";
         
-        echo $sql;
-		
+        //echo $sql;
+
         $result = mysqli_query($conn,$sql);
      
         
@@ -59,7 +59,7 @@
 	
    case 'actualizarProducto':	
 	
-                    $nombre = $_GET['nombre'];
+                    $nombre = urldecode($_GET['nombre']);
                     $foto = $_GET['foto'];
                     $color = $_GET['color'];
                     $orden = $_GET['orden'];

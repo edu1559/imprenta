@@ -30,7 +30,7 @@
 		   Formularios Comerciales - Libretas Escolares
 		   Agendas - </p>
 	  </div>
-	  <button type="button" id="btnProductos" class="btn btn-primary btn-block" style="width:100%">Productos</button>
+	  <button type="button" class="btn btn-primary btn-block" id="btnProductos" style="width:100%">Productos</button>
     </div>
     <div class="col-sm-4 p-5">
       <h3 style="text-align:center;width:100%;font-weight: bold">Servicios</h3>
@@ -41,14 +41,14 @@
 		   Formularios Comerciales - Libretas Escolares
 		   Agendas - </p>
 	  </div>
-	  <button type="button" id="btnServicios"  class="btn btn-success btn-block" style="width:100%">Servicios</button>
+	  <button type="button" class="btn btn-success btn-block" style="width:100%">Servicios</button>
     </div>
   </div>
 </div>
 </div>
 <script>
 	$('#btnNosotros').click(function(){
-		$('#contenido').load('contactenos.php');		
+		$('#contenido').load('ingreso/contactenos.php');
 	});
 	$('#btnProductos').click(function(){
 		$('#contenido').load('productos/productos.php');		
