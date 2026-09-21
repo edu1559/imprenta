@@ -7,8 +7,8 @@
  
 <!-- titulo--> 
 
- <div class="container text-center display-6 m-3">
-    Editor <i class="bi bi-file-earmark-text h1 text-success ml-4" ></i>
+ <div class="container text-center">
+    <h3>Editor<i class="bi bi-file-earmark-text h1 text-success" ></i></h3>
 </div>
 
 

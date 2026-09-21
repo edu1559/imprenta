@@ -33,11 +33,12 @@
 ?>
 
 
-<div class="container-fluid text-center p-3 h1 display-5"> 
-     Productos <i class="bi bi-person-badge text-dark fs2 p-3"></i>
-</div>
+<div class="container-fluid" style="background-color:#eee; min-height:100vh; padding-bottom: 3rem;">
+    <div class="container text-center pt-5 pb-4 h1 display-4">
+      <h1 class="display-4">Productos</h1>
+    </div>
 
-<div class="container"> <div class="row g-4"> 
+    <div class="container"> <div class="row g-4">
       
       <?php
            if (!empty($productos)) {
@@ -57,9 +58,9 @@
                 <h5 class="card-title text-center"> 
                     <?php echo htmlspecialchars($producto['nombre']); ?> 
                 </h5>
-                
-      <div class="card-text"> <?php htmlspecialchars($producto['caracteristicas']); ?></div>
-      
+
+      <p class="card-text"> <?php htmlspecialchars($producto['caracteristicas']); ?></p>
+
                 <!-- Si tienes un enlace específico para la lista de precios, úsalo en href -->
                 <!-- Si no, puedes dejar '#' o quitar el href si el botón hace otra acción (ej. con JS)-->
       
@@ -105,6 +106,6 @@
             }
                 */
             ?>
-        </div> 
-      </div> 
-    </>
+        </div>
+      </div>
+    </div>

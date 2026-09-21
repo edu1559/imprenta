@@ -1,16 +1,3 @@
-¡Perfecto! Vamos a darle un lavado de cara a contactos.php. Tenés una base sólida, pero el diseño está un poco "apretado" y la tabla tiene anchos fijos que hoy en día, con Bootstrap, conviene manejar de forma más elástica.
-¿Qué vamos a mejorar en contactos.php?
-
-    Diseño de la Tabla: Quitaremos los width fijos en los <td> y usaremos clases de Bootstrap para que se adapte mejor.
-
-    Buscador Reactivo: Arreglaremos el problema de que al borrar la búsqueda no vuelve a mostrar todos los contactos.
-
-    Visualización: Agregaremos un efecto visual a los botones y un diseño más limpio para que no parezca una planilla de Excel vieja.
-
-Aquí tenés la versión mejorada del archivo:
-contactos/contactos.php (Versión Pro)
-PHP
-
 <?php
 include_once('../conexion.php');
 $conn = conectar();
@@ -20,7 +7,7 @@ $cadena = isset($_GET['cadena']) ? mysqli_real_escape_string($conn, $_GET['caden
 $ultimos = isset($_GET['ultimos']) ? true : false;
 
 // Construcción de la SQL
-$sql = "SELECT id, apellido, nombre, telefono, correo, notas FROM contactos";
+$sql = "SELECT id, apellido, nombre, telefono, correo, notas FROM contactos ";
 
 if ($cadena) {
     $sql .= " WHERE apellido LIKE '%$cadena%' OR nombre LIKE '%$cadena%' OR telefono LIKE '%$cadena%'";
@@ -29,10 +16,10 @@ if ($cadena) {
 if ($ultimos) {
     $sql .= " ORDER BY id DESC";
 } else {
-    $sql .= " ORDER BY apellido ASC";
+    $sql .= " ORDER BY apellido DESC";
 }
 
-$sql .= " LIMIT 20"; // Subimos a 20 para llenar mejor la pantalla
+$sql .= " LIMIT 20 "; // Subimos a 20 para llenar mejor la pantalla
 $result = mysqli_query($conn, $sql);
 ?>
 
@@ -55,8 +42,8 @@ $result = mysqli_query($conn, $sql);
                 <div class="col-md-5">
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-success"></i></span>
-                        <input type="text" id="buscar" class="form-control border-start-0 ps-0" 
-                               placeholder="Buscar por apellido, nombre o teléfono..." 
+                        <input type="text" id="buscar" class="form-control border-start-0 ps-0"
+                               placeholder="Buscar por apellido, nombre o teléfono..."
                                value="<?php echo $cadena; ?>">
                     </div>
                 </div>
@@ -70,10 +57,10 @@ $result = mysqli_query($conn, $sql);
             <div class="table-responsive">
                 <table class="table table-hover align-middle" id="tbContactos">
                     <thead class="table-light">
-                        <tr>
+                        <tr class="table-primary">
                             <th class="text-muted">ID</th>
-                            <th>Cliente</th>
-                            <th>Contacto Directo</th>
+                            <th>Contacto</th>
+                            <th>Teléfono/ws</th>
                             <th>Correo Electrónico</th>
                             <th>Notas</th>
                             <th class="text-center">Acciones</th>
@@ -123,6 +110,11 @@ $result = mysqli_query($conn, $sql);
             </div>
         </div>
     </div>
+    <div class="modal fade" id="modalUniversal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"> <div class="modal-content">
+            </div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -157,3 +149,21 @@ $result = mysqli_query($conn, $sql);
             $('#modalUniversal').modal('show');
         });
     });
+
+    $(document).on('click', '.btnContactoBorrar', function(){
+        $('#modalUniversal .modal-content').load('contactos/modalContactosBorrar.php?idContacto=' + $(this).data('id'), function(){
+            $('#modalUniversal').modal('show');
+        });
+    });
+
+    $('.btnContactoNuevo').on('click', function(){
+        $('#modalUniversal .modal-content').load('contactos/modalContactoNuevo.php', function(){
+            $('#modalUniversal').modal('show');
+        });
+    });
+
+    // Resetear el tamaño del modal cuando se cierra para que los demás no queden gigantes
+    $('#modalUniversal').on('hidden.bs.modal', function () {
+        $(this).find('.modal-dialog').removeClass('modal-lg');
+    });
+</script>

@@ -46,7 +46,7 @@
           
           <td><h4>Horario de Atención:</h4></td>
           <td><span class="fa fa-clock-o" style="color: blue; font-size:30px; cursor:pointer;"></span></td>
-          <td>9 a 13 y 15 a 19 hs</td>
+          <td>7 a 13 y 15 a 19 hs</td>
           
         </tr>
         <tr>

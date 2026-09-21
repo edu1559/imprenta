@@ -4,75 +4,94 @@ $conn = conectarPDO();
 
 ?>
 
-<div class="modal-header bg-secondary text-white"> 
-    <h5 class="modal-title">Agregar un Contacto</h5>
+<div class="modal-header bg-dark text-white">
+    <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Nuevo Contacto Rápido</h5>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 
-<div class="modal-body">
+<div class="modal-body bg-light">
     <div class="container-fluid">
-        <form id="formEditarContacto">
-            <div class="row mb-3">
+        <form id="formNuevoContacto">
+            <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                    <label for="apellido1" class="form-label">Apellido:</label>
-                    <input type="text" class="form-control" id="apellido1" value="<?php if(isset($apellido)){ echo $apellido;}?>">
+                    <label class="form-label small fw-bold">Apellido / Empresa:</label>
+                    <input type="text" class="form-control shadow-sm" id="apellido1" placeholder="Ej: Perez o Gráfica Norte">
                 </div>
                 <div class="col-md-6">
-                    <label for="nombre1" class="form-label">Nombre:</label>
-                    <input type="text" class="form-control" id="nombre1" value="">
+                    <label class="form-label small fw-bold">Nombre:</label>
+                    <input type="text" class="form-control shadow-sm" id="nombre1" placeholder="Ej: Juan">
                 </div>
             </div>
 
-            <div class="row mb-3">
+            <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                    <label for="telefono1" class="form-label">Teléfono:</label>
-                    <input type="text" class="form-control" id="telefono1" value="<?php if(isset($email)){ echo $email;}?>">
+                    <label class="form-label small fw-bold">Teléfono / WhatsApp:</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-whatsapp"></i></span>
+                        <input type="text" class="form-control shadow-sm" id="telefono1">
+                    </div>
                 </div>
                 <div class="col-md-6">
-                    <label for="correo1" class="form-label">Correo:</label>
-                    <input type="email" class="form-control" id="correo1" value="<?php if(isset($telefono)){ echo $telefono;}?>">
+                    <label class="form-label small fw-bold">Correo Electrónico:</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                        <input type="email" class="form-control shadow-sm" id="correo1">
+                    </div>
                 </div>
             </div>
 
             <div class="row mb-3">
                 <div class="col-12">
-                    <label for="notas1" class="form-label">Notas:</label>
-                    <textarea class="form-control" id="notas1" rows="4"></textarea>
+                    <label class="form-label small fw-bold">Notas o Referencias:</label>
+                    <textarea class="form-control shadow-sm" id="notas1" rows="3" placeholder="Ej: Cliente recomendado por..."></textarea>
                 </div>
             </div>
-
-            <input type="hidden" id="idContacto1" value="<?php echo $idContacto; ?>">
         </form>
     </div>
 </div>
 
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-    <button type="button" class="btn btn-success" id="guardarDatos">Guardar</button>
+<div class="modal-footer bg-white">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-success px-4" id="guardarDatosContacto">
+        <i class="bi bi-save me-2"></i>Guardar Contacto
+    </button>
 </div>
 
 <script>
-    $('#guardarDatos').click(function(){
+    $('#guardarDatosContacto').click(function(){
         // Captura de datos
-        var v_apellido = encodeURI($('#apellido1').val());
-        var v_nombre = encodeURI($('#nombre1').val());
-        var v_telefono = encodeURI($('#telefono1').val());
-        var v_correo = encodeURI($('#correo1').val());
-        var v_notas = encodeURI($('#notas1').val()); // Agregué el campo notas
-       
-        
-        // CONSTRUCCIÓN SEGURA DE LA URL
-        // Usamos encodeURIComponent para evitar errores si hay espacios o caracteres especiales (&, ?, etc)
-        var v_url = 'contactos/ajaxContactos.php?opcion=agregarContacto' +
-            '&apellido=' + v_apellido +
-            '&nombre=' + v_nombre +
-            '&telefono=' + v_telefono +
-            '&correo=' + v_correo +
-            '&notas=' + v_notas;
-           
-            alert(v_url);
-        
-      $('#mensaje').load(v_url);
-        
+        var v_apellido = $('#apellido1').val().trim();
+        var v_nombre   = $('#nombre1').val().trim();
+
+        // Validación mínima
+        if(v_apellido == ""){
+            alert("El Apellido o Empresa es obligatorio");
+            $('#apellido1').focus();
+            return;
+        }
+
+        // Usamos POST para mayor seguridad y manejo de caracteres especiales
+        $.get   ('contactos/ajaxContactos.php', {
+            opcion: 'agregarContacto',
+            apellido: v_apellido,
+            nombre: v_nombre,
+            telefono: $('#telefono1').val(),
+            correo: $('#correo1').val(),
+            notas: $('#notas1').val()
+        }, function(respuesta) {
+            // Asumimos que tu ajaxContactos.php devuelve el ID del nuevo contacto o un mensaje de éxito
+            alert("Contacto guardado correctamente");
+
+            // Cerramos el modal
+            $('#modalUniversal').modal('hide');
+
+            /* TIP PROFESIONAL:
+               Si este modal se abrió desde el "Nuevo Pedido",
+               podrías refrescar el select de contactos aquí para que ya aparezca el nuevo.
+            */
+            if(typeof cargarContactos === 'function') {
+                cargarContactos();
+            }
+        });
     });
 </script>

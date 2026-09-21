@@ -2,152 +2,122 @@
 include_once('../conexion.php');
 $conn = conectar();
 
-// Revisa si el id del contacto está definido y es un número
-if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
-    $idContacto = $_GET['idContacto'];
-} else {
-    // Si no hay un ID válido, muestra un mensaje de error y detén la ejecución
-    die('No se ha seleccionado un contacto válido.');
-}
+$idContacto = intval($_GET['idContacto']);
 
-/* Busco los datos del contacto */
-// Preparamos la consulta para evitar inyecciones SQL
-$sql = "SELECT id, apellido, nombre, telefono, correo, tipoFactura, cuit, fechaCarga, tipo, notas 
-        FROM contactos 
-        WHERE id = ? ";
+// 1. Buscamos datos del contacto para el título
+$resCliente = mysqli_query($conn, "SELECT apellido, nombre FROM contactos WHERE id = $idContacto");
+$cliente = mysqli_fetch_assoc($resCliente);
 
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $idContacto);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-
-// Si no se encuentra el contacto, muestra un mensaje
-if (mysqli_num_rows($result) === 0) {
-    die('Contacto no encontrado.');
-}
-
-$myrow = mysqli_fetch_assoc($result);
-
-// Asignamos los datos a variables
-$id = $myrow["id"];
-$apellido = $myrow["apellido"];
-$nombre = $myrow["nombre"];
-$telefono = $myrow["telefono"];
-$correo = $myrow["correo"];
-$tipoFactura = $myrow["tipoFactura"];
-$cuit = $myrow["cuit"];
-$fechaCarga = $myrow["fechaCarga"];
-$tipo = $myrow["tipo"];
-$notas = $myrow["notas"];
-
-mysqli_stmt_close($stmt);
+// 2. Buscamos sus pedidos
+$sql = "SELECT p.id,
+               p.detalle,
+               date_format(p.entrada, '%d/%m/%y') as fecha,
+               p.monto,
+               (p.monto - p.montoPagado) as saldo,
+               p.estadoProduccion,
+               p.estadoEntrega,
+               p.estadoPago
+        FROM pedidos p
+        WHERE p.idContacto = $idContacto
+        ORDER BY p.id DESC";
+$resPedidos = mysqli_query($conn, $sql);
 ?>
 
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0 text-center">Ficha de Contacto</h4>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-12">
-                    <h5 class="text-center text-primary mb-3">
-                        <?php echo htmlspecialchars($apellido . " " . $nombre); ?>
-                    </h5>
-                    <hr>
-                </div>
-            </div>
+<div class="modal-header bg-primary text-white">
+    <h5 class="modal-title">
+        <i class="bi bi-journal-text me-2"></i>
+        Historial: <?php echo $cliente['apellido'] . ", " . $cliente['nombre']; ?>
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
 
-            <div class="row">
-                <div class="col-md-6 mb-2">
-                    <strong>Teléfono:</strong> <?php echo htmlspecialchars($telefono); ?>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <strong>Correo:</strong> <?php echo htmlspecialchars($correo); ?>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <strong>Tipo de factura:</strong> <?php echo htmlspecialchars($tipoFactura); ?>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <strong>CUIT:</strong> <?php echo htmlspecialchars($cuit); ?>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <strong>Fecha de carga:</strong> <?php echo htmlspecialchars(date('d/m/Y', strtotime($fechaCarga))); ?>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <strong>Tipo de contacto:</strong> <?php echo htmlspecialchars($tipo); ?>
-                </div>
-            </div>
+<div class="modal-body bg-light">
+    <div class="container-fluid">
+        <?php if (mysqli_num_rows($resPedidos) > 0): ?>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm table-hover bg-white shadow-sm rounded">
+                    <thead class="table-dark sticky-top">
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Detalle</th>
+                            <th class="text-center">Estados (P | E | $)</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $totalDeuda = 0;
+                        while ($p = mysqli_fetch_assoc($resPedidos)):
+                            $totalDeuda += $p['saldo'];
 
-            <?php if (!empty($notas)) : ?>
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="alert alert-info">
-                            <strong>Notas:</strong> <?php echo nl2br(htmlspecialchars($notas)); ?>
-                        </div>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-        </div>
-  
-
-<!-- Busco los datos de los pedidos -->
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-secondary text-white">
-            <h5 class="mb-0 text-center">Pedidos realizados</h5>
-        </div>
-        <div class="card-body"  style="max-height: 400px; overflow-y: scroll;">
-            <?php
-            /* Busco los datos de los pedidos */
-            $sql_pedidos = "SELECT id, entrada, detalle, monto, montoPagado, estadoEntrega, estadoPago, estadoProduccion, idUsuario 
-                            FROM pedidos 
-                            WHERE idContacto = ? 
-                            ORDER BY entrada DESC "; // Ordenamos por fecha de entrada para ver los más recientes primero
-            //echo $sql_pedidos;
-            $stmt_pedidos = mysqli_prepare($conn, $sql_pedidos);
-            mysqli_stmt_bind_param($stmt_pedidos, "i", $idContacto);
-            mysqli_stmt_execute($stmt_pedidos);
-            $result_pedidos = mysqli_stmt_get_result($stmt_pedidos);
-            ?>
-
-            <?php if (mysqli_num_rows($result_pedidos) > 0) : ?>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover rounded">
-                        <thead class="table-success">
+                            // Lógica de colores para estados rápidos
+                            $cProd = ($p['estadoProduccion'] == 3) ? 'success' : (($p['estadoProduccion'] == 2) ? 'warning' : 'danger');
+                            $cEntr = ($p['estadoEntrega'] == 3) ? 'success' : (($p['estadoEntrega'] == 2) ? 'warning' : 'danger');
+                            $cPago = ($p['estadoPago'] == 3) ? 'success' : (($p['estadoPago'] == 2) ? 'warning' : 'danger');
+                        ?>
                             <tr>
-                                <th># Pedido</th>
-                                <th>Entrada</th>
-                                <th>Detalle</th>
-                                <th>Monto</th>
-                                <th>Estado de Pago</th>
-                                <th>Estado de Entrega</th>
+                                <td class="fw-bold">#<?php echo $p['id']; ?></td>
+                                <td class="small"><?php echo $p['fecha']; ?></td>
+                                <td>
+                                    <div class="small text-truncate" style="max-width: 200px;" title="<?php echo $p['detalle']; ?>">
+                                        <?php echo $p['detalle']; ?>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-<?php echo $cProd; ?> p-1" title="Producción"><i class="bi bi-gear-fill"></i></span>
+                                    <span class="badge bg-<?php echo $cEntr; ?> p-1" title="Entrega"><i class="bi bi-truck"></i></span>
+                                    <span class="badge bg-<?php echo $cPago; ?> p-1" title="Pago"><i class="bi bi-cash"></i></span>
+                                </td>
+                                <td class="text-end small">$<?php echo number_format($p['monto'], 2); ?></td>
+                                <td class="text-end fw-bold <?php echo ($p['saldo'] > 0) ? 'text-danger' : 'text-success'; ?>">
+                                    $<?php echo number_format($p['saldo'], 2); ?>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($pedido = mysqli_fetch_assoc($result_pedidos)) : ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($pedido['idPedido']); ?></td>
-                                    <td><?php echo htmlspecialchars(date('d/m/Y', strtotime($pedido['entrada']))); ?></td>
-                                    <td><?php echo htmlspecialchars($pedido['detalle']); ?></td>
-                                    <td><?php echo '$' . number_format($pedido['monto'], 2, ',', '.'); ?></td>
-                                    <td><?php echo htmlspecialchars($pedido['estadoPago']); ?></td>
-                                    <td><?php echo htmlspecialchars($pedido['estadoEntrega']); ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php else : ?>
-                <p class="text-muted text-center">Este contacto no tiene pedidos registrados.</p>
-            <?php endif; ?>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
 
-            <?php mysqli_stmt_close($stmt_pedidos); ?>
-        </div>
+            <div class="row mt-3 p-2 bg-white rounded shadow-sm border">
+                <div class="col-6">
+                    <span class="text-muted">Total de pedidos realizados:</span>
+                    <span class="fw-bold"><?php echo mysqli_num_rows($resPedidos); ?></span>
+                </div>
+                <div class="col-6 text-end">
+                    <span class="h5">Saldo Pendiente: </span>
+                    <span class="h5 <?php echo ($totalDeuda > 0) ? 'text-danger' : 'text-success'; ?>">
+                        $<?php echo number_format($totalDeuda, 2); ?>
+                    </span>
+                </div>
+            </div>
+
+        <?php else: ?>
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle me-2"></i> Este cliente aún no tiene pedidos registrados.
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php mysqli_close($conn); ?>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+    <button type="button" class="btn btn-success btnNuevoPedidoDesdeModal" data-id="<?php echo $idContacto; ?>">
+        <i class="bi bi-plus-circle me-1"></i> Crear Nuevo Pedido
+    </button>
+</div>
+
+<script>
+    // Por si quieres saltar directo a crearle un pedido a este cliente
+    $('.btnNuevoPedidoDesdeModal').click(function() {
+        let idC = $(this).data('id');
+        $('#modalUniversal').modal('hide');
+        // Aquí podrías disparar la carga del modal de nuevo pedido con el ID de cliente ya seleccionado
+        setTimeout(function(){
+             $('#contenido').load('pedidos/pedidos.php', function(){
+                 // Lógica para abrir el modal de pedido nuevo
+             });
+        }, 300);
+    });
+</script>
