@@ -1,6 +1,6 @@
 <?php
       include_once ('../conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 
  
       if(isset($_GET['opcion'])){
@@ -38,19 +38,22 @@
             $sql = "select idTipoPedido,
                             count(*),
                             sum(montoPagado),
-                            sum(monto-montoPagado) 
+                            sum(monto-montoPagado)
                     from pedidos
-                    where entrada >= '$fechaDesde' and
-                        entrada <= '$fechaHasta' and
+                    where entrada >= :fechaDesde and
+                        entrada <= :fechaHasta and
                     idTipoPedido in (1,2)
                     group by idTipoPedido";
            // echo $sql;
-                    
-            $result = mysqli_query($conn,$sql);
-    
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':fechaDesde', $fechaDesde, PDO::PARAM_STR);
+            $stmt->bindParam(':fechaHasta', $fechaHasta, PDO::PARAM_STR);
+            $stmt->execute();
+
         //    $resumen = array();
 
-            while ($myrow = mysqli_fetch_row($result)){
+            while ($myrow = $stmt->fetch(PDO::FETCH_NUM)){
             
                 $resumen[$myrow[0]] = array ($myrow[1],$myrow[2],$myrow[3]);
             };

@@ -28,4 +28,19 @@ function cerrar($conn) {
   // Cierra la conexión a la base de datos
   mysqli_close($conn);
 }
-?>			
+
+function conectarPDO()
+{
+    // Variables de conexión (mismas credenciales que conectar())
+    $host = "localhost";
+    $user = "root";
+    $pass = "root";
+    $db   = "imprenta";
+
+    $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
+    $conn = new PDO($dsn, $user, $pass);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    return $conn;
+}
+?>

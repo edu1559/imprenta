@@ -1,17 +1,17 @@
 <?php
       include_once ('../conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 
 /*  vector medios */
 
     $medios = array();
-    
+
     $sql = "select id,medio,logo,visible
             from mediosPago";
-            
-    $result = mysqli_query($conn,$sql);
-    
-    while ($myrow = mysqli_fetch_row($result)){
+
+    $stmt = $conn->query($sql);
+
+    while ($myrow = $stmt->fetch(PDO::FETCH_NUM)){
      $medios[$myrow[0]]= array($myrow[1],$myrow[2],$myrow[3]);
     };
        

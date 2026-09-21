@@ -1,12 +1,12 @@
 <?php
 include_once('../conexion.php');
-$conn = conectar();
+$conn = conectarPDO();
 
 // Cargamos diccionarios pequeños (esto no pesa)
 function obtenerDiccionario($conn, $tabla, $columna) {
     $arr = [];
-    $res = mysqli_query($conn, "SELECT id, $columna FROM $tabla");
-    while($row = mysqli_fetch_row($res)) $arr[$row[0]] = $row[1];
+    $res = $conn->query("SELECT id, $columna FROM $tabla");
+    while($row = $res->fetch(PDO::FETCH_NUM)) $arr[$row[0]] = $row[1];
     return $arr;
 }
 

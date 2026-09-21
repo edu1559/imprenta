@@ -1,7 +1,7 @@
 <?php 
 // No hace falta session_start() aquí si ya lo pusiste en el index.php
 include_once('conexion.php');
-$conn = conectar();
+$conn = conectarPDO();
 
 // 1. Corregimos el ID de usuario para que use el de la sesión real
 $idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 0; // 0 para visitantes
@@ -21,15 +21,16 @@ $idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 0; // 0 pa
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <?php
         // Traemos el menú según el usuario
-        $sql = "SELECT m.id, m.nombre, m.pagina, m.padre 
-                FROM menu m 
+        $sql = "SELECT m.id, m.nombre, m.pagina, m.padre
+                FROM menu m
                 INNER JOIN permisos p ON m.id = p.idMenu
-                WHERE p.idUsuario = $idUsuario AND m.activo = 1
+                WHERE p.idUsuario = :idUsuario AND m.activo = 1
                 ORDER BY m.padre ASC, m.orden ASC";
-        
-        $result = mysqli_query($conn, $sql);
-        $menuItems = [];
-        while ($row = mysqli_fetch_assoc($result)) { $menuItems[] = $row; }
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':idUsuario', $idUsuario, PDO::PARAM_INT);
+        $stmt->execute();
+        $menuItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($menuItems as $item) {
             if ($item['padre'] == null) {

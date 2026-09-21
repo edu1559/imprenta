@@ -1,9 +1,9 @@
     <?php
 include_once('../conexion.php');
-$conn = conectar();
+$conn = conectarPDO();
 
 // Traemos los perfiles (son pocos, el array está bien)
-$resPerfiles = mysqli_query($conn, "SELECT id, perfil FROM perfiles ORDER BY perfil ASC");
+$resPerfiles = $conn->query("SELECT id, perfil FROM perfiles ORDER BY perfil ASC");
 ?>
 
 <div class="modal-header bg-dark text-white"> 
@@ -48,7 +48,7 @@ $resPerfiles = mysqli_query($conn, "SELECT id, perfil FROM perfiles ORDER BY per
                     <label class="small text-muted">Asignar Perfil:</label>
                     <select class="form-select" id="selPerfil">
                         <option value="" selected disabled>Seleccione un perfil...</option>
-                        <?php while($p = mysqli_fetch_assoc($resPerfiles)){
+                        <?php while($p = $resPerfiles->fetch(PDO::FETCH_ASSOC)){
                             echo "<option value='{$p['id']}'>{$p['perfil']}</option>";
                         } ?>
                     </select>

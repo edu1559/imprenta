@@ -1,19 +1,18 @@
 
 <?php
 include_once('../conexion.php'); // Asegúrate que la ruta sea correcta
-$conn = conectar();
+$conn = conectarPDO();
 
 /* array productos[idProducto]= array(nombre,foto) */
 $productos = array();
 
-$sql = "SELECT id, nombre, foto 
+$sql = "SELECT id, nombre, foto
         FROM productos";
-$result = mysqli_query($conn, $sql);
+$stmt = $conn->query($sql);
 
-while ($row = mysqli_fetch_assoc($result)) { // Usar fetch_assoc es más legible
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) { // Usar fetch_assoc es más legible
     $productos[$row['id']] = ['nombre' => $row['nombre'], 'foto' => $row['foto']];
 }
-mysqli_close($conn); // Cerrar conexión cuando ya no se necesita
 
 // Determinar producto seleccionado (igual que tu lógica)
 if (isset($_GET['idProducto']) && isset($productos[$_GET['idProducto']])) {

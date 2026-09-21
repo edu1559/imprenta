@@ -2,16 +2,16 @@
    // Conectar a la base de datos
 
         include_once ('../conexion.php');
-        $conn = conectar();
+        $conn = conectarPDO();
 
     // array asociativo $productos['idProducto']= array (nombre,foto,caracteristicas,enlace,color,orden);
 
         $productos = array();
         $sql = "select id,nombre,foto,caracteristicas
                 from productos";
-        $result = mysqli_query($conn,$sql);
+        $stmt = $conn->query($sql);
 
-        while($myrow = mysqli_fetch_row($result)){
+        while($myrow = $stmt->fetch(PDO::FETCH_NUM)){
             $productos[$myrow[0]] = array($myrow[1],$myrow[2],$myrow[3],$myrow[4]);
         };  
 

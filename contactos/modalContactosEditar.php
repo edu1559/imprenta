@@ -1,6 +1,6 @@
 <?php
 include_once('../conexion.php');
-$conn = conectar();
+$conn = conectarPDO();
 
 // Validación de seguridad para el ID
 if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
@@ -10,20 +10,19 @@ if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
 }
 
 /* Busco los datos del contacto */
-$sql = "select id, apellido, nombre, telefono, correo, tipoFactura, cuit, notas 
-        from contactos 
-        where id = ? ";
+$sql = "select id, apellido, nombre, telefono, correo, tipoFactura, cuit, notas
+        from contactos
+        where id = :idContacto ";
 
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $idContacto);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
+$stmt = $conn->prepare($sql);
+$stmt->bindParam(':idContacto', $idContacto, PDO::PARAM_INT);
+$stmt->execute();
 
-if (mysqli_num_rows($result) === 0) {
+if ($stmt->rowCount() === 0) {
     die('<div class="alert alert-danger">Contacto no encontrado.</div>');
 }
 
-$myrow = mysqli_fetch_assoc($result);
+$myrow = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Asignación de variables
 $id = $myrow["id"];
@@ -35,7 +34,6 @@ $tipoFactura = $myrow["tipoFactura"];
 $cuit = $myrow["cuit"];
 $notas = $myrow["notas"];
 
-mysqli_stmt_close($stmt);
 ?>
 
 <div class="modal-header bg-primary text-white"> 

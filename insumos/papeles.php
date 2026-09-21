@@ -1,6 +1,6 @@
 <?php
       include_once ('../conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 
 
 if(isset($_GET['cadena'])){
@@ -18,16 +18,21 @@ if(isset($_GET['ultimos'])){
     $sql = "select id,nombre,largo,ancho, gramaje,formato, hojasPaquete,precioPaquete,precioHoja,idProveedor
             from papeles ";
     if(isset($cadena)){
-        $sql .= " where nombre like '%$cadena%' ";
+        $sql .= " where nombre like :cadena ";
     };
     if(isset($ultimos)){
         $sql .= " order by 1 desc ";
     };
     $sql .= " limit 15";
-            
-    $result = mysqli_query($conn,$sql);
-    
-    while ($myrow = mysqli_fetch_row($result)){
+
+    $stmt = $conn->prepare($sql);
+    if(isset($cadena)){
+        $busqueda = "%$cadena%";
+        $stmt->bindParam(':cadena', $busqueda, PDO::PARAM_STR);
+    };
+    $stmt->execute();
+
+    while ($myrow = $stmt->fetch(PDO::FETCH_NUM)){
      $papeles[$myrow[0]]= array($myrow[1],$myrow[2],$myrow[3],$myrow[4],$myrow[5],$myrow[6],$myrow[7],$myrow[8]);
     };
      //print_r($papeles);

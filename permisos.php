@@ -1,7 +1,7 @@
 
 <?php
       include_once ('conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 ?> 
 
 

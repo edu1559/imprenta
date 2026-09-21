@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Incluir conexión a la base de datos
 include_once('../conexion.php'); // Ajusta la ruta si es necesario
-$conn = conectar();
+$conn = conectarPDO();
 
 // --- Variables ---
 $idProducto = null;
@@ -63,24 +63,18 @@ if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) 
         $nombre_archivo_final_db = $ruta_web_base . $nombre_archivo_final_servidor;
 
         // Preparar la consulta SQL para actualizar la foto del producto
-        $sql_update = "UPDATE productos SET foto = ? WHERE id = ?";
-        $stmt = mysqli_prepare($conn, $sql_update);
+        $sql_update = "UPDATE productos SET foto = :foto WHERE id = :id";
 
-        if ($stmt) {
-            mysqli_stmt_bind_param($stmt, "si", $nombre_archivo_final_db, $idProducto);
-
-            if (mysqli_stmt_execute($stmt)) {
-                $mensaje_usuario = "¡Imagen actualizada correctamente para el producto ID " . $idProducto . "!";
-                // Opcional: Podrías querer eliminar la foto ANTERIOR del servidor aquí
-            } else {
-                $mensaje_usuario = "Error al actualizar la base de datos: " . mysqli_stmt_error($stmt);
-                // Considerar eliminar el archivo recién subido si la BD falla
-                unlink($ruta_destino_final_servidor);
-            }
-            mysqli_stmt_close($stmt);
-        } else {
-            $mensaje_usuario = "Error al preparar la consulta de actualización: " . mysqli_error($conn);
-             // Considerar eliminar el archivo recién subido si la BD falla
+        try {
+            $stmt = $conn->prepare($sql_update);
+            $stmt->bindParam(':foto', $nombre_archivo_final_db, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $idProducto, PDO::PARAM_INT);
+            $stmt->execute();
+            $mensaje_usuario = "¡Imagen actualizada correctamente para el producto ID " . $idProducto . "!";
+            // Opcional: Podrías querer eliminar la foto ANTERIOR del servidor aquí
+        } catch (PDOException $e) {
+            $mensaje_usuario = "Error al actualizar la base de datos: " . $e->getMessage();
+            // Considerar eliminar el archivo recién subido si la BD falla
             unlink($ruta_destino_final_servidor);
         }
 
@@ -104,8 +98,6 @@ if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) 
             break;
     }
 }
-
-mysqli_close($conn);
 
 // Redirigir de vuelta a la página del formulario con un mensaje
 $param_redir = $idProducto ? '?idProducto=' . $idProducto : ''; // Mantener el producto seleccionado

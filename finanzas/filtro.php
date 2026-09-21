@@ -1,6 +1,6 @@
 <?php
       include_once ('../conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 
 ?>
  
@@ -70,11 +70,11 @@
 						  on p.idContacto = c.id 
 				    order by id desc limit 20 ";
                 
-            $result = mysqli_query($conn,$sql);
+            $stmt = $conn->query($sql);
             
            
             
-            while($myrow = mysqli_fetch_row($result)){
+            while($myrow = $stmt->fetch(PDO::FETCH_NUM)){
                         echo "<tr ";
                                 switch ($myrow[2]) {
                                                 case 1:

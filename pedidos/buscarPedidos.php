@@ -1,6 +1,6 @@
 <?php
       include_once ('../conexion.php');
-      $conn = conectar();
+      $conn = conectarPDO();
 
 ?>
  
@@ -49,11 +49,11 @@
          if(isset($_GET['cadena'])){
             $cadena = $_GET['cadena'];
 
-        $sql = "select c.apellido, p.entrada, p.detalle, p.monto ,p.montoPagado 
-                from pedidos p inner join contactos c on c.id = p.idContacto 
+        $sql = "select c.apellido, p.entrada, p.detalle, p.monto ,p.montoPagado
+                from pedidos p inner join contactos c on c.id = p.idContacto
                 where apellido like '%ote%'";
-        $result = mysqli_query($conn,$sql);
-           while ($myrow = mysqli_fetch_row($result)){
+        $stmt = $conn->query($sql);
+           while ($myrow = $stmt->fetch(PDO::FETCH_NUM)){
             echo "<tr><td>". $myrow[0]. "</td>
                         <td>". $myrow[1]. "</td>
                         <td>". $myrow[2]. "</td>

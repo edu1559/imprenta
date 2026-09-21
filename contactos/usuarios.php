@@ -1,7 +1,7 @@
 
 <?php
 include_once('../conexion.php');
-$conn = conectar();
+$conn = conectarPDO();
 ?>
 
 <div class="container-fluid mt-3 px-4">
@@ -34,8 +34,8 @@ $conn = conectar();
                             INNER JOIN contactos c ON u.id = c.id
                             INNER JOIN perfiles p ON u.idPerfil = p.id
                             ORDER BY c.apellido ASC";
-                    $res = mysqli_query($conn, $sql);
-                    while($row = mysqli_fetch_assoc($res)){
+                    $res = $conn->query($sql);
+                    while($row = $res->fetch(PDO::FETCH_ASSOC)){
                     ?>
                     <tr>
                         <td><?php echo $row['id']; ?></td>
