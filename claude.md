@@ -35,7 +35,7 @@ Aplicación web de gestión para una imprenta: productos y precios, clientes, pe
 ## Cosas a evitar / advertencias
 - `conexion.php` / `conexionImprenta.php` tienen credenciales hardcodeadas (`root/root`) — son solo para desarrollo local. **Nunca** subir credenciales reales de producción a git.
 - Hay archivos `.bak` y duplicados con sufijos numéricos (`contactos1.php`, `pedidos1.php`, etc.) — antes de crear un archivo nuevo, verificar si ya existe una versión similar para no sumar más duplicados.
-- Hay un archivo suelto llamado `administrcion` (typo) que no es la carpeta `administracion` — tener cuidado de no confundirlos.
+- (22/09/26) Se limpiaron ~19 archivos .php huérfanos (sin ninguna referencia real, verificado cruzando código y tabla `menu`): scripts de debug (`phpInfo.php`, `administracion/phpini.php`), el archivo suelto `administrcion` (typo, ya no existe), duplicados exactos (`sistema/fundamentos.php`/`menuNav.php`), y versiones viejas superadas de pedidos/finanzas/contactos. Antes de asumir que un archivo nuevo "no se usa", repetir esa verificación (grep de su nombre en todo el proyecto + su `pagina` en la tabla `menu`) en vez de guiarse solo por la fecha o el nombre.
 
 ## Convenciones (a definir/mantener)
 - Evitar crear nuevos archivos con sufijos numéricos como forma de versionado; usar git para eso.
