@@ -1,6 +1,6 @@
 <?php
 include_once ('../conexion.php');
-$conn = conectar();   
+$conn = conectar();
 
 
 function obtenerDiccionario($conn, $tabla, $columna) {
@@ -15,115 +15,86 @@ $tipoPedido = obtenerDiccionario($conn, 'tipoPedido', 'tipo');
 $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
 ?>
 
+<div class="container-fluid py-4 px-4">
 
-<!-- titulo-->
-<div class="container  mt-2 p-3  text-center h3">
-    Pedidos <i class="bi bi-clipboard2 fs-1 text-success"></i>
-</div>
-
-
- <!-- panelGeneral -->
-
-<div class="container-fluid border bg-light ms-5 me-5">
-
-<div class="row mb-3 mt-3">
-    <div class="col-md-6">
-        <label class="form-label fw-bold small text-muted mb-1">Buscar Cliente — para cobrar, entregar o ver su historial</label>
-        <select class="form-select" id="selBuscarClienteRapido" style="width:100%">
-            <option value="">Escriba apellido, nombre o teléfono...</option>
-        </select>
+    <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 shadow-sm rounded">
+        <div>
+            <h3 class="text-success mb-0 fw-bold">
+                <i class="bi bi-clipboard2-fill me-2"></i> Pedidos
+            </h3>
+            <small class="text-muted">Gestión de pedidos, pagos y entregas</small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class='btn btn-success shadow-sm' id='btnPedidoNuevo' title='Nuevo Pedido'>
+                <i class="bi bi-plus-circle me-1"></i> Nuevo Pedido
+            </button>
+            <button class='btn btn-outline-secondary' id='btnContactoNuevo' title='Nuevo Contacto'>
+                <i class="bi bi-person-plus me-1"></i> Nuevo Contacto
+            </button>
+        </div>
     </div>
-</div>
 
-<div class="row align-items-center mb-5 me-5" style="width:90">
-   
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
 
-        <div class="col-md-1 d-flex justify-content-end">
-                    <button class='btn btn-success'
-                            id='btnPedidoNuevo'
-                            title='Nuevo Pedido'
-                            data-bs-toggle='modal'
-                            data-bs-target='#modalUniversal'>
-                        <i class="bi bi-clipboard2"></i> Nuevo Pedido
-                    </button>
-        </div>
-
-         <div class="col-md-1 d-flex justify-content-end">
-                    <button class='btn btn-danger'
-                            id='btnContactoNuevo'
-                            title='Nuevo Contacto'
-                            data-bs-toggle='modal'
-                            data-bs-target='#modalUniversal'>
-                        <i class="bi bi-person"></i> Nuevo Contacto
-                    </button>
-        </div>
-
-
- <!-- botones de búsqueda  -->
-  
-        <div class="col-md-5 container-fluid mb-3"> 
-            <div class="input-group form-inline d-flex">  
-                <button type="button" class="btn btn-outline-success btnOpciones" data-valor="ultimos">Últimos</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinTerminar">Sin Terminar</button>
-                <button type="button" class="btn btn-outline-danger btnOpciones"  data-valor="sinPagar">Sin Pagar</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinEntregar">Sin Entregar</button>
-            </div>
-        </div>
-
-
-
- <!-- panelbusca -->
-
-      
-
-        <div class="col-md-3" id="panelesPedidos">
-            <div class="rounded" id="panelListaPedidos">
-                <div class="input-group mb-3">
-                    <span class="input-group-text bg-success text-white"><i class="bi bi-search"></i></span>
-                    <input type="text" id="buscar" class="form-control" placeholder="Pedido # o Apellido..." aria-label="Buscar">
-                    <button class="btn btn-success" type="button" id="btnBuscarPedidos">Buscar</button>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1">Buscar Cliente — para cobrar, entregar o ver su historial</label>
+                    <select class="form-select" id="selBuscarClienteRapido" style="width:100%">
+                        <option value="">Escriba apellido, nombre o teléfono...</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1">Filtrar esta tabla por pedido # o apellido</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-success"></i></span>
+                        <input type="text" id="buscar" class="form-control border-start-0 ps-0" placeholder="Pedido # o Apellido...">
+                        <button class="btn btn-outline-secondary" type="button" id="btnBuscarPedidos">Buscar</button>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button type="button" class="btn btn-sm btn-outline-success btnOpciones" data-valor="ultimos">Últimos</button>
+                <button type="button" class="btn btn-sm btn-outline-primary btnOpciones" data-valor="sinTerminar">Sin Terminar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger btnOpciones" data-valor="sinPagar">Sin Pagar</button>
+                <button type="button" class="btn btn-sm btn-outline-primary btnOpciones" data-valor="sinEntregar">Sin Entregar</button>
+            </div>
+
+            <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tblPedidos">
+            <thead class="table-light">
+                    <tr class="table-primary">
+                            <th class="text-muted">ID</th>
+                            <th colspan="2">Cliente</th>
+                            <th colspan="2">Detalle</th>
+                            <th title="entrada">Ent.</th>
+                            <th title="Prometido">Prom.</th>
+                            <th style="display:none">salida</th>
+                            <th class="text-center" title='Entrega'>Entrega</th>
+                            <th class="text-center" title='Producción'>Prod.</th>
+                            <th class="text-center" title='Pago'>Pago</th>
+                            <th class="text-end" title='Monto Pagado'>Pagado</th>
+                            <th class="text-end" title='Monto Total'>Total</th>
+                            <th class="text-end">Saldo</th>
+                            <th>Medio Pago</th>
+                            <th style="display:none">origen</th>
+                            <th class="text-center" title='Editar Pedido'>Editar</th>
+                            <th class="text-center" title='Orden'>Orden</th>
+                            <th>Cargó</th>
+                            <th class="text-center">Estado</th>
+                    </tr>
+            </thead>
 
 
-<!-- tblPedidos-->  
+            <?php
 
-    <div id="tblContenedor" class="container text-left" >
- 
-    <table class="table table-striped table-hover rounded me-5 mt-3" id="tblPedidos">
-    <thead>
-            <tr class="table text-bg-color table-dark">
-                    <th >id</th>
-                    <th colspan="2">apellido nombre</th>
-                    <th colspan="2">detalle</th>
-                    <th title="entrada">Ent</th>
-                    <th title="Prom">Prom.</th>
-                    <th style="display:none">salida</th>
-                    <th title='Entrega'>Ent.</th>
-                    <th title='Produccion'>Prod.</th>
-                    <th title='Pago'>Pago</th>
-                    <th title='Monto Pagado'>Pagado</th>
-                    <th title='Monto Total'>Total</th>
-                    <th>Saldo</th>
-                    <th>MedioPago</th>
-                    <th style="display:none">origen</th>
-                    <th style="display:none">Cargó</th>
-                    <th style="display:none">cuit</th>
-                    <th style="display:none">idContacto</th>
-                    <th title='Editar Pedido'>editar</th>
-                    <th title='Orden'>Orden</th>
-                    <th title='Cargo la orden'>Cargo</th>
-                    <th>Terminado</th>         
-            </tr>
-    </thead>
-	
-    
-    <?php 
-
-    
-           //    include_once ('../conexion.php');
- 
+    // Etiquetas y colores de los 3 estados (mismo criterio visual para los tres,
+    // en pastillas de color en vez de los íconos con borde que había antes).
+    $estilosEstado = [1 => 'bg-danger', 2 => 'bg-warning text-dark', 3 => 'bg-success'];
+    $etiquetasEntrega    = [1 => 'PENDIENTE',   2 => 'PARCIAL', 3 => 'ENTREGADO'];
+    $etiquetasProduccion = [1 => 'S/COMENZAR',  2 => 'PARCIAL', 3 => 'TERMINADO'];
+    $etiquetasPago       = [1 => 'DEBE',        2 => 'PARCIAL', 3 => 'PAGADO'];
 
     $sql = "select p.id,
                 p.idContacto,
@@ -141,18 +112,18 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
                 (p.monto - p.montoPagado) as saldo,
                 p.idMedioPago,
                 p.idOrigen,
-                u.usuario 
-        from pedidos p 
-                inner join contactos c 
-                    on p.idContacto = c.id 
-                inner join usuarios u 
+                u.usuario
+        from pedidos p
+                inner join contactos c
+                    on p.idContacto = c.id
+                inner join usuarios u
                     on u.id = p.idUsuario";
-    
-                
+
+
 // FILTRO DE BÚSQUEDA (Cadena o ID)
 if(isset($_GET['cadena']) && !empty($_GET['cadena'])){
     $cadena = mysqli_real_escape_string($conn, $_GET['cadena']);
-    
+
     // Si la cadena es un número, buscamos por ID exacto, sino por Apellido
     if(is_numeric($cadena)){
         $sql .= " WHERE p.id = $cadena ";
@@ -180,79 +151,56 @@ if(isset($_GET['opcion'])){
         // 'ultimos' no necesita WHERE extra, el LIMIT al final se encarga
     }
 }
-                        
+
     $sql .= " order by id desc limit 30 ";
-    //echo $sql;   
-    
+    //echo $sql;
+
     $result = mysqli_query($conn,$sql);
-    
-           
-            
+
+
+
     while($myrow = mysqli_fetch_row($result)){
             echo "<tr><td ";  //tipo de pedido
             switch ($myrow[2]) {
                 case 1:
-                        echo " style= 'background-color:#dfd' >";
+                        echo " style= 'background-color:#eefbf1' >";
                         break;
                 case 2:
-                        echo " style= 'background-color:#fdd' >";
+                        echo " style= 'background-color:#fdecec' >";
                         break;
                 case 3:
-                        echo " style='background-color:#ffd' >";
+                        echo " style='background-color:#fff9e6' >";
                         break;
         };
 
         echo $myrow[0]. "</td> <!-- id -->
         <td style=\"display:none\">". $myrow[1]. "</td> <!-- idContacto -->
         <td style=\"display:none\">". $myrow[2]. "</td> <!-- idTipoPedido -->
-        <td colspan=\"2\">". $myrow[3]. "</td> <!--  apellido  y nombre--> 
+        <td colspan=\"2\"><span class=\"fw-bold text-dark\">". $myrow[3]. "</span></td> <!--  apellido  y nombre-->
         <td  colspan=\"2\">". $myrow[4]. "</td> <!--  detalle -->
-        <td >". $myrow[5]. "</td> <!--  entrada -->
-        <td>". $myrow[6]. "</td><!--  prometido -->
+        <td class=\"text-muted small\">". $myrow[5]. "</td> <!--  entrada -->
+        <td class=\"text-muted small\">". $myrow[6]. "</td><!--  prometido -->
         <td style=\"display:none\">". $myrow[7]. "</td><!--  salida -->
-        <td  data-entrega=\"$myrow[8]\">"; /* entrega */
-        switch ($myrow[8]) {
-                case 1:
-                        echo "<button class='btn btn-outline-danger btnEstado' data-tipo='entrega' data-id='$myrow[0]' data-actual='$myrow[8]'> <i class=\"bi bi-hand-index \"></i></button>";
-                        break;
-                case 2:
-                        echo "<button class='btn btn-outline-warning  btnEstado' data-tipo='entrega' data-id='$myrow[0]' data-actual='$myrow[8]'> <i class=\"bi bi-hand-index \"></i></button>";
-                        break;
-                case 3:
-                        echo "<button class='btn btn-outline-success  btnEstado' data-tipo='entrega' data-id='$myrow[0]' data-actual='$myrow[8]'> <i class=\"bi bi-hand-index  \"></i></button>";
-                        break;
-        };
+        <td class=\"text-center\" data-entrega=\"$myrow[8]\">"; /* entrega */
+        $clase = $estilosEstado[$myrow[8]] ?? 'bg-secondary';
+        $texto = $etiquetasEntrega[$myrow[8]] ?? '?';
+        echo "<button class='btn btn-sm rounded-pill border-0 fw-bold text-white btnEstado $clase' data-tipo='entrega' data-id='$myrow[0]' data-actual='$myrow[8]'>$texto</button>";
             echo "</td>
-                <td data-produccion=\"$myrow[9]\">"; /* produccion */
-        switch ($myrow[9]) {
-                case 1:
-                        echo "<button class='btn btn-outline-danger btnEstado' data-tipo='Produccion'  data-id='$myrow[0]' data-actual='$myrow[9]'> <i class=\"bi bi-gear-fill  \"></i></button>";
-                        break;
-                case 2:
-                        echo "<button class='btn btn-outline-warning  btnEstado' data-tipo='Produccion'   data-id='$myrow[0]' data-actual='$myrow[9]'> <i class=\"bi bi-gear-fill  \"></i></button>";
-                        break;
-                case 3:
-                        echo "<button class='btn btn-outline-success  btnEstado' data-tipo='Produccion'   data-id='$myrow[0]' data-actual='$myrow[9]'> <i class=\"bi bi-gear-fill  \"></i></button>";
-                        break;
-        };
+                <td class=\"text-center\" data-produccion=\"$myrow[9]\">"; /* produccion */
+        $clase = $estilosEstado[$myrow[9]] ?? 'bg-secondary';
+        $texto = $etiquetasProduccion[$myrow[9]] ?? '?';
+        echo "<button class='btn btn-sm rounded-pill border-0 fw-bold text-white btnEstado $clase' data-tipo='Produccion' data-id='$myrow[0]' data-actual='$myrow[9]'>$texto</button>";
                 echo "</td>
-                <td data-pago=\"$myrow[10]\" >";  /* pago */
-        switch ($myrow[10]) {
-                case 1:
-                        echo "<button class='btn btn-outline-danger  btnPagos' data-tipo='Pago'  data-id='$myrow[0]' data-actual='$myrow[10]'><i class=\"bi bi-cash \"></i></button>";
-                        break;
-                case 2:
-                        echo "<button class='btn btn-outline-warning btnPagos' data-tipo='Pago' data-id='$myrow[0]' data-actual='$myrow[10]'><i class=\"bi bi-cash \"></i></button>";
-                        break;
-                case 3:
-                        echo "<button class='btn btn-outline-success btnPagos' data-tipo='Pago' data-id='$myrow[0]' data-actual='$myrow[10]'><i class=\"bi bi-cash \"></i></button>";
-                        break;
-            };
+                <td class=\"text-center\" data-pago=\"$myrow[10]\" >";  /* pago */
+        $clase = $estilosEstado[$myrow[10]] ?? 'bg-secondary';
+        $texto = $etiquetasPago[$myrow[10]] ?? '?';
+        echo "<button class='btn btn-sm rounded-pill border-0 fw-bold text-white btnPagos $clase' data-tipo='Pago' data-id='$myrow[0]' data-actual='$myrow[10]'>$texto</button>";
                     echo "</td>
-                    <td data-montoPagadoOriginal =\"$myrow[11]\">". $myrow[11]. "</td><!-- Monto Pagado-->
-                    <td>". $myrow[12]. "</td><!-- Monto-->
-                    <td>". $myrow[13]. "</td><!-- Saldo-->
-                    <td data-medio=\"$myrow[14]\">";
+                    <td class=\"text-end\" data-montoPagadoOriginal =\"$myrow[11]\">". $myrow[11]. "</td><!-- Monto Pagado: sin number_format a propósito,
+                         el JS le hace parseFloat() y el botón Cerrar lo manda tal cual al servidor -->
+                    <td class=\"text-end\">". $myrow[12]. "</td><!-- Monto: mismo motivo que arriba -->
+                    <td class=\"text-end fw-bold\" style=\"color: " . (($myrow[12] - $myrow[11]) > 0.01 ? '#dc3545' : '#198754') . ";\">". number_format($myrow[13], 2) . "</td><!-- Saldo: esta sí se puede formatear, nada la lee por JS -->
+                    <td class=\"small text-muted\" data-medio=\"$myrow[14]\">";
                     switch ($myrow[14]) {
                         case 1:
                             echo $medioPago[1];
@@ -268,7 +216,7 @@ if(isset($_GET['opcion'])){
                             break;;
                         // ... otros casos ...
                         default:
-                                
+
                             echo "Medio de pago no encontrado";
                         };
                         echo "</td>
@@ -291,60 +239,50 @@ if(isset($_GET['opcion'])){
                             echo "origen no encontrado";
                         };
 
-                        echo "</td><td>";
+                        echo "</td><td class=\"text-center\">";
 
-                  
+
                     // Detectamos si el pedido está 100% terminado myrow[8] = Entrega, myrow[9] = Produccion, myrow[10] = Pago
                         $estaTerminado = ($myrow[8] == 3 && $myrow[9] == 3 && $myrow[10] == 3);
-                   
+
                         if (!$estaTerminado) {
                             // Solo mostramos el botón si NO está terminado
-                            echo "<button class='btn btn-outline-dark btnPedidoEditar'> <i class='bi bi-pencil'> </i></button>";
+                            echo "<button class='btn btn-sm btn-light border btnPedidoEditar' title='Editar'> <i class='bi bi-pencil-square text-success'></i></button>";
                         } else {
                             // Opcional: Mostrar un candado o dejar vacío
                             echo "<i class='bi bi-lock-fill text-muted' title='Pedido Cerrado'></i>";
                         }
                         echo "</td>";
 
-                                            
-                        
-                        echo "<td><button  class='btn btn-outline-dark btnImprimirOrden'> <i class='bi bi-printer'> </i></button></td>
-                       <td>$myrow[16]</td>";
+
+
+                        echo "<td class=\"text-center\"><button  class='btn btn-sm btn-light border btnImprimirOrden' title='Imprimir Orden'> <i class='bi bi-printer text-primary'></i></button></td>
+                       <td class=\"small text-muted\">$myrow[16]</td>";
                         // Columna Terminado (la que ya tenías con el botón 'Cerrar')
-                       
-                        echo "<td class='terminado'>";
+
+                        echo "<td class='terminado text-center'>";
                         if (isset($estaTerminado)) {
-                            echo "<span class='badge bg-success'>Terminado</span>";
+                            echo "<span class='badge bg-success rounded-pill px-3 py-2'>Terminado</span>";
                         } else {
-                            echo "<button type='button' class='btn btn-success btnCerrar btn-sm'>Cerrar</button>";
+                            echo "<button type='button' class='btn btn-success btn-sm rounded-pill btnCerrar'>Cerrar</button>";
                         }
                         echo "</td>";
-                        
+
                         echo "</tr>";
                     }
                     ?>
-                                    	
-                                                    
 
-    </table>	
-</div>
-</div> 
-		 
-		 <div class="col-5  rounded" id="panelMuestraPedido" >
-		 </div>
-	
-	</div>
-		 <!--
-       <div class="modal fade" id="modalUniversal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-            </div>     
+
+
+            </table>
+            </div>
         </div>
-       </div>
-   
-        -->
-       
+    </div>
+
+    <div class="rounded mt-3" id="panelMuestraPedido"></div>
+
+</div>
+
 <script>
 
     // Buscador rápido de cliente: escribís, elegís y va directo a su historial
@@ -432,9 +370,9 @@ if(isset($_GET['opcion'])){
         var url = 'pedidos/modalOrden.php?idPedido=' + v_idPedido + '&imprimir=true';
         window.open(url, '_blank', 'width=900,height=800');
     });
-    
-    
-                     
+
+
+
     $('.imprimirPedidoPdf').click(function() {
         var v_idPedido = $(this).closest('tr').find('td:first').text();
         var v_url = 'pedidos/pdfOrden.php?idPedido=' + v_idPedido;
@@ -443,25 +381,25 @@ if(isset($_GET['opcion'])){
 
         window.open(v_url, 'ventana', 'width=480,height=620,top=30,left=299,scrollbars=yes');
     });
-    
+
     $('#btnBuscarPedidos').click(function() {
-        
+
             var v_cadena = $('#buscar').val();
             v_cadena = encodeURI(v_cadena);
-      
+
             v_url = 'pedidos/pedidos.php?cadena=' + v_cadena;
          //   alert(v_url);
                 $('#contenido').load(v_url);
-              
+
     });
 
     $('.btnOpciones').click(function() {
             v_opcion = $(this).data('valor')
             v_url = 'pedidos/pedidos.php?opcion=' + v_opcion;
-            $('#contenido').load(v_url); 
+            $('#contenido').load(v_url);
 
     });
-   
+
     $('#tblPedidos tbody tr').each(function() {
             const estadoEntrega = $(this).find('td[data-entrega]').data('entrega');
             const estadoProduccion = $(this).find('td[data-produccion]').data('produccion');
@@ -470,14 +408,14 @@ if(isset($_GET['opcion'])){
             const montoTotal = parseFloat($(this).find('td').eq(12).text().trim());
 
             const diferenciaMonto = Math.abs(montoTotal - montoPagado);
-            
+
           //  alert(estadoEntrega + '  ' + estadoProduccion + '  ' + estadoPago + '  ' +  montoPagado + ' ' + montoTotal  );
-            
+
             if (diferenciaMonto <= 0.1 && estadoPago == 3 && estadoEntrega == 3 && estadoProduccion == 3) {
-                $(this).find('.terminado').text('Terminado');
-               
+                $(this).find('.terminado').html("<span class='badge bg-success rounded-pill px-3 py-2'>Terminado</span>");
+
             } else {
-                $(this).find('.terminado').html('<button type="button" class="btn btn-success btnCerrar">Cerrar</button>');
+                $(this).find('.terminado').html('<button type="button" class="btn btn-success btn-sm rounded-pill btnCerrar">Cerrar</button>');
             }
         });
 
@@ -485,7 +423,7 @@ if(isset($_GET['opcion'])){
 
 $('table').on('click', '.btnCerrar', function() {
     var $row = $(this).closest('tr');
-    
+
     // Recolección de variables
     var datos = {
         opcion: 'cerrarPedido',
@@ -519,10 +457,18 @@ $('table').on('click', '.btnCerrar', function() {
     }
 });
 
+// Etiquetas y color de cada estado, para que el ciclo de clicks respete el
+// mismo estilo de pastilla con el que se dibuja la tabla al cargarla.
+const ETIQUETAS_ESTADO = {
+    entrega:    {1: 'PENDIENTE',  2: 'PARCIAL', 3: 'ENTREGADO'},
+    Produccion: {1: 'S/COMENZAR', 2: 'PARCIAL', 3: 'TERMINADO'}
+};
+const CLASES_ESTADO = {1: 'bg-danger', 2: 'bg-warning text-dark', 3: 'bg-success'};
+
 $('.btnEstado').click(function() {
     let v_btn = $(this);
     let v_idPedido = v_btn.data('id');
-    let v_tipo = v_btn.data('tipo'); 
+    let v_tipo = v_btn.data('tipo');
     let v_actual = parseInt(v_btn.data('actual'));
     let v_nuevo = (v_actual % 3) + 1; // Ciclo 1 -> 2 -> 3 -> 1
 
@@ -535,20 +481,11 @@ $('.btnEstado').click(function() {
         tipo: v_tipo,
         nuevoEstado: v_nuevo
     }, function(respuesta) {
-        // Restaurar icono y actualizar datos
         v_btn.data('actual', v_nuevo);
-        v_btn.removeClass('btn-outline-danger btn-outline-warning btn-outline-success');
-        
-        // Definir iconos según el tipo para no perderlos
-        let icono = (v_tipo === 'entrega') ? 'bi-hand-index' : 'bi-gear-fill';
-        v_btn.html('<i class="bi ' + icono + '"></i>');
-
-        if (v_nuevo == 1) v_btn.addClass('btn-outline-danger');
-        else if (v_nuevo == 2) v_btn.addClass('btn-outline-warning');
-        else if (v_nuevo == 3) v_btn.addClass('btn-outline-success');
+        v_btn.removeClass('bg-danger bg-warning bg-success text-dark');
+        v_btn.addClass(CLASES_ESTADO[v_nuevo]);
+        v_btn.text(ETIQUETAS_ESTADO[v_tipo][v_nuevo]);
     });
 
 });
 </script>
-
-
