@@ -173,7 +173,7 @@ $dataPres = mysqli_fetch_assoc($resPres);
                 return;
             }
 
-            $('.modal-content').load(v_url, function(response, status, xhr) {
+            $('#modalUniversal .modal-content').load(v_url, function(response, status, xhr) {
                 if (status === "error") {
                     console.error("Error al cargar modal: " + xhr.status);
                 } else {

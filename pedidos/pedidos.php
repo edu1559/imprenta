@@ -23,8 +23,17 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
 
 
  <!-- panelGeneral -->
- 
+
 <div class="container-fluid border bg-light ms-5 me-5">
+
+<div class="row mb-3 mt-3">
+    <div class="col-md-6">
+        <label class="form-label fw-bold small text-muted mb-1">Buscar Cliente — para cobrar, entregar o ver su historial</label>
+        <select class="form-select" id="selBuscarClienteRapido" style="width:100%">
+            <option value="">Escriba apellido, nombre o teléfono...</option>
+        </select>
+    </div>
+</div>
 
 <div class="row align-items-center mb-5 me-5" style="width:90">
    
@@ -337,12 +346,56 @@ if(isset($_GET['opcion'])){
         -->
        
 <script>
-                   
+
+    // Buscador rápido de cliente: escribís, elegís y va directo a su historial
+    // (el caso más frecuente: "el cliente llama para pagar o retirar").
+    $('#selBuscarClienteRapido').select2({
+        placeholder: 'Escriba apellido, nombre o teléfono...',
+        minimumInputLength: 3,
+        ajax: {
+            url: 'contactos/buscarContactos.php',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) { return { q: params.term }; },
+            processResults: function (data) { return { results: data }; },
+            cache: true
+        },
+        templateResult: function(c) {
+            if (!c.id) { return c.text; }
+            if (c.id === 'NEW') {
+                return '<div class="d-flex align-items-center gap-2 text-warning-emphasis fw-bold px-1 py-1"><i class="bi bi-plus-circle-fill"></i> ' + $('<div>').text(c.text).html() + '</div>';
+            }
+            var saldo = parseFloat(c.saldo) || 0;
+            var saldoTxt = saldo > 0 ? ('Debe $' + saldo.toLocaleString('es-AR')) : 'Al día';
+            var saldoClase = saldo > 0 ? 'bg-danger' : 'bg-success';
+            return '<div class="d-flex justify-content-between align-items-center px-1 py-1">' +
+                     '<div><div class="fw-bold">' + $('<div>').text(c.text).html() + '</div>' +
+                     '<div class="small text-muted">' + $('<div>').text(c.telefono || '').html() + ' · ' + (c.pedidos || 0) + ' pedidos</div></div>' +
+                     '<span class="badge ' + saldoClase + '">' + saldoTxt + '</span>' +
+                   '</div>';
+        },
+        escapeMarkup: function(m) { return m; }
+    });
+
+    $('#selBuscarClienteRapido').on('select2:select', function(e) {
+        var data = e.params.data;
+        $('#selBuscarClienteRapido').val(null).trigger('change');
+        if (data.id === 'NEW') {
+            // No tiene sentido dar de alta un cliente sin cargarle un pedido:
+            // lo mandamos directo al modal de Nuevo Pedido con el alta inline.
+            $('#modalUniversal .modal-content').load('pedidos/modalPedidoNuevo.php', function(){
+                $('#modalUniversal').modal('show');
+            });
+            return;
+        }
+        abrirModalHistorial(data.id);
+    });
+
  //  Agregar pedido nuevo
     $('#btnPedidoNuevo').on('click', function(){
         v_url = 'pedidos/modalPedidoNuevo.php';
        // alert(v_url);
-        $('.modal-content').load(v_url, function(){
+        $('#modalUniversal .modal-content').load(v_url, function(){
             $('#modalUniversal').modal('show');
         });
     });
@@ -350,7 +403,7 @@ if(isset($_GET['opcion'])){
     $('#btnContactoNuevo').on('click', function(){
         v_url = 'contactos/modalContactoNuevo.php?id=null';
         // alert(v_url);
-        $('.modal-content').load(v_url, function(){
+        $('#modalUniversal .modal-content').load(v_url, function(){
             $('#modalUniversal').modal('show');
         });
     });
@@ -359,7 +412,7 @@ if(isset($_GET['opcion'])){
         var v_idPedido = $(this).closest('tr').find('td:first').text();
         v_url = 'pedidos/modalEditarPedido.php?idPedido=' + v_idPedido ;
        //alert(v_url);
-        $('.modal-content').load(v_url, function(){
+        $('#modalUniversal .modal-content').load(v_url, function(){
             $('#modalUniversal').modal('show');
         });
     });
@@ -368,7 +421,7 @@ if(isset($_GET['opcion'])){
         var v_idPedido = $(this).closest('tr').find('td:first').text();
         v_url = 'pedidos/modalPedidoPagos.php?idPedido=' + v_idPedido ;
       // alert(v_url);
-        $('.modal-content').load(v_url, function(){
+        $('#modalUniversal .modal-content').load(v_url, function(){
             $('#modalUniversal').modal('show');
         });
     });

@@ -97,11 +97,53 @@ $(document).ready(function() {
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-            </div>     
+            </div>
         </div>
 </div>
 
+<!-- Modal secundario: historial de pedidos de un cliente. Vive aparte de
+     #modalUniversal para poder abrirse ENCIMA de él (por ejemplo, mientras se
+     está cargando un pedido nuevo) sin perder lo que ya se cargó en el otro. -->
+<div class="modal fade" id="modalHistorialCliente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <div class="spinner-border text-primary"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
+<script>
+    // Punto único para abrir el historial de un cliente desde cualquier pantalla
+    // (Pedidos, el combo de búsqueda, el modal de Nuevo Pedido, etc.)
+    function abrirModalHistorial(idContacto) {
+        $('#modalHistorialCliente .modal-content').html(
+            '<div class="modal-body text-center p-5"><div class="spinner-border text-primary"></div></div>'
+        );
+        $('#modalHistorialCliente').modal('show');
+        $('#modalHistorialCliente .modal-content').load('contactos/modalContactosPedidos.php?idContacto=' + idContacto);
+    }
+
+    // Bootstrap no apila z-index automáticamente cuando hay dos modales propios
+    // abiertos a la vez (no es el mismo caso que un modal-de-modal nativo de BS5).
+    // Si #modalHistorialCliente se abre con #modalUniversal ya abierto, lo subimos
+    // por encima de su backdrop para que se vea como un modal "de segundo piso".
+    $('#modalHistorialCliente').on('show.bs.modal', function () {
+        if ($('#modalUniversal').hasClass('show')) {
+            $(this).css('z-index', 1070);
+            setTimeout(function () {
+                $('.modal-backdrop').not('.backdrop-historial').last()
+                    .addClass('backdrop-historial')
+                    .css('z-index', 1065);
+            }, 0);
+        }
+    });
+    $('#modalHistorialCliente').on('hidden.bs.modal', function () {
+        $('.modal-backdrop.backdrop-historial').remove();
+        $(this).css('z-index', '');
+    });
+</script>
 
  <div class="modal fade" id="modalExpiracion" data-bs-backdrop="static" tabindex="-1">
     <div class="modal-dialog modal-sm">

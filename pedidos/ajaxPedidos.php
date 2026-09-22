@@ -117,8 +117,10 @@ switch ($opcion){
         $diferencia = $montoPagado - $montoPagadoOriginal;
 
         if ($diferencia > 0.01) {
-            $sqlPago = "INSERT INTO pagos (fecha, idPedido, idContacto, idUsuario, monto, idMedioPago) 
-                        VALUES (NOW(), $idPedido, $idContacto, $idUsuario, '$diferencia', $idMedioPago)";
+            // Nota: la tabla 'pagos' no tiene columna idContacto (bug detectado: la insert fallaba
+            // en silencio y el pago aumentado nunca quedaba en el historial de pagos).
+            $sqlPago = "INSERT INTO pagos (fecha, idPedido, idUsuario, monto, idMedioPago)
+                        VALUES (NOW(), $idPedido, $idUsuario, '$diferencia', $idMedioPago)";
             mysqli_query($conn, $sqlPago);
         }
   
@@ -161,10 +163,9 @@ case 'cerrarPedido':
 
             $pagoActual = $monto - $montoPagado;
 
-            $sqlPago = "insert into pagos 
+            $sqlPago = "insert into pagos
                         (fecha,idPedido,monto,idMedioPago,idUsuario)
                         values (now(),$id,$pagoActual,$idMedio,$idUsuario)";
-            echo $sql;
                 if (mysqli_query($conn, $sqlPago)) {
                         echo "✅ Pago Cargado.";
                 } else {

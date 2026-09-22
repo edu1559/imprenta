@@ -124,11 +124,37 @@
                 } else {
                     echo "Error al actualizar contacto";
                 };
-               
-    
+
+
        break;
-    
-    
-    
+
+    case 'agregarContactoInline':
+        // Alta rápida de cliente desde el modal de Nuevo Pedido (pedidos/modalPedidoNuevo.php),
+        // sin salir del formulario. Devuelve JSON con el id nuevo para poder seleccionarlo al toque.
+        $apellido = isset($_GET['apellido']) ? trim(urldecode($_GET['apellido'])) : '';
+        $nombre   = isset($_GET['nombre'])   ? trim(urldecode($_GET['nombre']))   : '';
+        $telefono = isset($_GET['telefono']) ? trim($_GET['telefono']) : '';
+        $correo   = isset($_GET['correo'])   ? trim($_GET['correo'])   : '';
+
+        header('Content-Type: application/json');
+
+        if ($apellido === '') {
+            echo json_encode(['ok' => false, 'error' => 'El apellido es obligatorio']);
+            break;
+        }
+
+        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, correo, fechacarga) VALUES (?, ?, ?, ?, NOW())");
+        $stmtIns->bind_param("ssss", $apellido, $nombre, $telefono, $correo);
+
+        if ($stmtIns->execute()) {
+            $nuevoId = $stmtIns->insert_id;
+            $texto = $apellido . ($nombre !== '' ? (', ' . $nombre) : '');
+            echo json_encode(['ok' => true, 'id' => $nuevoId, 'text' => $texto]);
+        } else {
+            echo json_encode(['ok' => false, 'error' => $conn->error]);
+        }
+        $stmtIns->close();
+    break;
+
     };
 };

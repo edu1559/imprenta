@@ -103,21 +103,27 @@ $resPedidos = mysqli_query($conn, $sql);
 
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-    <button type="button" class="btn btn-success btnNuevoPedidoDesdeModal" data-id="<?php echo $idContacto; ?>">
+    <button type="button" class="btn btn-success btnNuevoPedidoDesdeModal" data-id="<?php echo $idContacto; ?>" data-nombre="<?php echo htmlspecialchars($cliente['apellido'] . ', ' . $cliente['nombre'], ENT_QUOTES); ?>">
         <i class="bi bi-plus-circle me-1"></i> Crear Nuevo Pedido
     </button>
 </div>
 
 <script>
-    // Por si quieres saltar directo a crearle un pedido a este cliente
+    // Este fragmento se carga tanto dentro de #modalUniversal (desde Contactos)
+    // como dentro de #modalHistorialCliente (desde Pedidos, apilado sobre el de
+    // Nuevo Pedido) — por eso cerramos "el modal que lo contiene", no uno fijo.
     $('.btnNuevoPedidoDesdeModal').click(function() {
         let idC = $(this).data('id');
-        $('#modalUniversal').modal('hide');
-        // Aquí podrías disparar la carga del modal de nuevo pedido con el ID de cliente ya seleccionado
+        let nombreC = $(this).data('nombre');
+        $(this).closest('.modal').modal('hide');
+
         setTimeout(function(){
-             $('#contenido').load('pedidos/pedidos.php', function(){
-                 // Lógica para abrir el modal de pedido nuevo
-             });
+            $('#modalUniversal .modal-content').load(
+                'pedidos/modalPedidoNuevo.php?idContacto=' + encodeURIComponent(idC) + '&nombreContacto=' + encodeURIComponent(nombreC),
+                function(){
+                    $('#modalUniversal').modal('show');
+                }
+            );
         }, 300);
     });
 </script>
