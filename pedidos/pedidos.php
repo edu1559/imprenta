@@ -26,15 +26,6 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
 
 <div class="container-fluid border bg-light ms-5 me-5">
 
-<div class="row mb-3 mt-3">
-    <div class="col-md-6">
-        <label class="form-label fw-bold small text-muted mb-1">Buscar Cliente — para cobrar, entregar o ver su historial</label>
-        <select class="form-select" id="selBuscarClienteRapido" style="width:100%">
-            <option value="">Escriba apellido, nombre o teléfono...</option>
-        </select>
-    </div>
-</div>
-
 <div class="row align-items-center mb-5 me-5" style="width:90">
    
 
@@ -114,7 +105,8 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
                     <th title='Editar Pedido'>editar</th>
                     <th title='Orden'>Orden</th>
                     <th title='Cargo la orden'>Cargo</th>
-                    <th>Terminado</th>         
+                    <th>Terminado</th>
+                    <th title='Ver todos los pedidos de esta persona'>Historial</th>
             </tr>
     </thead>
 	
@@ -125,7 +117,7 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
            //    include_once ('../conexion.php');
  
 
-    $sql = "select p.id,
+    $baseSelect = "select p.id,
                 p.idContacto,
                 p.idTipoPedido,
                 concat(c.apellido,' ',c.nombre) as contacto,
@@ -147,47 +139,41 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
                     on p.idContacto = c.id 
                 inner join usuarios u 
                     on u.id = p.idUsuario";
-    
-                
-// FILTRO DE BÚSQUEDA (Cadena o ID)
-if(isset($_GET['cadena']) && !empty($_GET['cadena'])){
-    $cadena = mysqli_real_escape_string($conn, $_GET['cadena']);
-    
-    // Si la cadena es un número, buscamos por ID exacto, sino por Apellido
-    if(is_numeric($cadena)){
-        $sql .= " WHERE p.id = $cadena ";
+
+    $cadena = (isset($_GET['cadena']) && !empty($_GET['cadena'])) ? mysqli_real_escape_string($conn, $_GET['cadena']) : null;
+    $opcion = isset($_GET['opcion']) ? $_GET['opcion'] : null;
+
+    if ($cadena !== null && is_numeric($cadena)) {
+        // Búsqueda por # de pedido exacto
+        $sql = "$baseSelect WHERE p.id = $cadena ORDER BY p.id DESC LIMIT 30";
+
+    } elseif ($cadena !== null) {
+        // Búsqueda por apellido: puede haber varias personas con el mismo apellido,
+        // y cada una con muchos pedidos. Mostramos un solo pedido (el más reciente)
+        // por persona; el botón "Ver todos sus pedidos" de la fila trae el resto.
+        $sql = "SELECT * FROM (
+                    SELECT t.*, ROW_NUMBER() OVER (PARTITION BY t.idContacto ORDER BY t.id DESC) AS rn
+                    FROM ($baseSelect WHERE c.apellido LIKE '%$cadena%') t
+                ) agrupado
+                WHERE rn = 1
+                ORDER BY id DESC
+                LIMIT 30";
+
     } else {
-        $sql .= " WHERE c.apellido LIKE '%$cadena%' ";
+        // Sin búsqueda de texto: los filtros rápidos de siempre (Últimos / Sin Terminar / etc.)
+        $sql = $baseSelect;
+        switch ($opcion) {
+            case 'sinPagar':    $sql .= " WHERE p.estadoPago in (1,2) "; break;
+            case 'sinEntregar': $sql .= " WHERE p.estadoEntrega in (1,2) "; break;
+            case 'sinTerminar': $sql .= " WHERE p.estadoProduccion in (1,2) "; break;
+            // 'ultimos' (o ningún filtro) no necesita WHERE extra, el LIMIT se encarga
+        }
+        $sql .= " ORDER BY p.id DESC LIMIT 30";
     }
-}
+    //echo $sql;
 
-// BOTONES DE OPCIONES (Se agregan con AND si ya hay un WHERE, o con WHERE si no lo hay)
-if(isset($_GET['opcion'])){
-    $opcion = $_GET['opcion'];
-    // Determinamos si ya pusimos el WHERE arriba
-    $prefijo = (strpos($sql, 'WHERE') !== false) ? " AND " : " WHERE ";
-
-    switch ($opcion){
-        case 'sinPagar':
-            $sql .= $prefijo . " p.estadoPago in (1,2) ";
-        break;
-        case 'sinEntregar':
-            $sql .= $prefijo . " p.estadoEntrega in (1,2) ";
-        break;
-        case 'sinTerminar':
-            $sql .= $prefijo . " p.estadoProduccion in (1,2) ";
-        break;
-        // 'ultimos' no necesita WHERE extra, el LIMIT al final se encarga
-    }
-}
-                        
-    $sql .= " order by id desc limit 30 ";
-    //echo $sql;   
-    
     $result = mysqli_query($conn,$sql);
-    
-           
-            
+
     while($myrow = mysqli_fetch_row($result)){
             echo "<tr><td ";  //tipo de pedido
             switch ($myrow[2]) {
@@ -319,6 +305,11 @@ if(isset($_GET['opcion'])){
                             echo "<button type='button' class='btn btn-success btnCerrar btn-sm'>Cerrar</button>";
                         }
                         echo "</td>";
+
+                        // Ver todos los pedidos de esta persona (mismo modal de historial
+                        // que ya se usa desde Contactos), útil sobre todo cuando la búsqueda
+                        // por apellido agrupa varias personas con el mismo apellido.
+                        echo "<td><button class='btn btn-outline-primary btn-sm btnVerHistorialCliente' data-idcontacto='$myrow[1]' title='Ver todos los pedidos de esta persona'><i class='bi bi-clipboard2-data'></i></button></td>";
                         
                         echo "</tr>";
                     }
@@ -347,48 +338,9 @@ if(isset($_GET['opcion'])){
        
 <script>
 
-    // Buscador rápido de cliente: escribís, elegís y va directo a su historial
-    // (el caso más frecuente: "el cliente llama para pagar o retirar").
-    $('#selBuscarClienteRapido').select2({
-        placeholder: 'Escriba apellido, nombre o teléfono...',
-        minimumInputLength: 3,
-        ajax: {
-            url: 'contactos/buscarContactos.php',
-            dataType: 'json',
-            delay: 250,
-            data: function (params) { return { q: params.term }; },
-            processResults: function (data) { return { results: data }; },
-            cache: true
-        },
-        templateResult: function(c) {
-            if (!c.id) { return c.text; }
-            if (c.id === 'NEW') {
-                return '<div class="d-flex align-items-center gap-2 text-warning-emphasis fw-bold px-1 py-1"><i class="bi bi-plus-circle-fill"></i> ' + $('<div>').text(c.text).html() + '</div>';
-            }
-            var saldo = parseFloat(c.saldo) || 0;
-            var saldoTxt = saldo > 0 ? ('Debe $' + saldo.toLocaleString('es-AR')) : 'Al día';
-            var saldoClase = saldo > 0 ? 'bg-danger' : 'bg-success';
-            return '<div class="d-flex justify-content-between align-items-center px-1 py-1">' +
-                     '<div><div class="fw-bold">' + $('<div>').text(c.text).html() + '</div>' +
-                     '<div class="small text-muted">' + $('<div>').text(c.telefono || '').html() + ' · ' + (c.pedidos || 0) + ' pedidos</div></div>' +
-                     '<span class="badge ' + saldoClase + '">' + saldoTxt + '</span>' +
-                   '</div>';
-        },
-        escapeMarkup: function(m) { return m; }
-    });
-
-    $('#selBuscarClienteRapido').on('select2:select', function(e) {
-        var data = e.params.data;
-        $('#selBuscarClienteRapido').val(null).trigger('change');
-        if (data.id === 'NEW') {
-            // No tiene sentido dar de alta un cliente sin cargarle un pedido:
-            // lo mandamos directo al modal de Nuevo Pedido con el alta inline.
-            $('#modalUniversal .modal-content').load('pedidos/modalPedidoNuevo.php', function(){
-                $('#modalUniversal').modal('show');
-            });
-            return;
-        }
-        abrirModalHistorial(data.id);
+    // Ver todos los pedidos de esta persona (mismo modal de historial que en Contactos)
+    $(document).on('click', '.btnVerHistorialCliente', function(){
+        abrirModalHistorial($(this).data('idcontacto'));
     });
 
  //  Agregar pedido nuevo
