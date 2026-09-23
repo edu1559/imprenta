@@ -26,7 +26,7 @@ $resT = mysqli_query($conn, "SELECT id, tipo FROM tipoPedido");
 while($row = mysqli_fetch_row($resT)) $tipoPedido[$row[0]] = $row[1];
 
 // Mismo criterio de color que en modalPedidoNuevo.php: venta=verde, compra=rojo,
-// presupuesto=amarillo. El formulario en sí queda en color crema; solo cambia
+// presupuesto=amarillo. El formulario en sí queda en blanco; solo cambia
 // el encabezado (acá para el primer render, y por JS al cambiar el combo).
 function claseColorTipoPedido($idTipo) {
     switch ((int)$idTipo) {
@@ -38,7 +38,7 @@ function claseColorTipoPedido($idTipo) {
 }
 [$claseFondoTipo, $claseTextoTipo, $claseCerrarTipo] = claseColorTipoPedido($reg['idTipoPedido']);
 
-$colorCrema = '#f7f1e1';
+$colorFondo = '#ffffff';
 ?>
 
 <div class="modal-header <?php echo "$claseFondoTipo $claseTextoTipo"; ?>" id="modalHeaderEditarPedido">
@@ -46,7 +46,7 @@ $colorCrema = '#f7f1e1';
     <button type="button" class="btn-close <?php echo $claseCerrarTipo; ?>" id="btnCerrarModalEditar" data-bs-dismiss="modal"></button>
 </div>
 
-<div class="modal-body" style="background-color: <?php echo $colorCrema; ?>;"> <form id="formEditarPedido">
+<div class="modal-body" style="background-color: <?php echo $colorFondo; ?>;"> <form id="formEditarPedido">
         <input type="hidden" id="editIdPedido" value="<?php echo $idPedido; ?>">
         <input type="hidden" id="editIdContacto" value="<?php echo $reg['idContacto']; ?>">
         <input type="hidden" id="montoPagadoOriginal" value="<?php echo $reg['montoPagado']; ?>">
@@ -85,7 +85,7 @@ $colorCrema = '#f7f1e1';
         </div>
 
 
-        <div class="row g-2 mb-3 p-2 rounded" style="background-color: <?php echo $colorCrema; ?>; border: 1px solid #e6dcc3;">
+        <div class="row g-2 mb-3 p-2 rounded" style="background-color: <?php echo $colorFondo; ?>; border: 1px solid #dee2e6;">
             <div class="col-md-4 col-12">
                 <div class="card bg-white h-100">
                     <div class="card-body py-2">
@@ -140,7 +140,7 @@ $colorCrema = '#f7f1e1';
                 </div>
             </div>
         </div>
-        <div class="row g-2 mb-4 p-2 rounded" style="background-color: <?php echo $colorCrema; ?>; border: 1px solid #e6dcc3;">
+        <div class="row g-2 mb-4 p-2 rounded" style="background-color: <?php echo $colorFondo; ?>; border: 1px solid #dee2e6;">
             <div class="col-md-3">
                 <label class="small">Total $:</label>
                 <input type="number" class="form-control form-control-sm fw-bold" id="editMonto" value="<?php echo $reg['monto']; ?>">
