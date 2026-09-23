@@ -18,22 +18,36 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
 // llega el cliente ya elegido y arrancamos directo en el formulario.
 $idContactoPre = isset($_GET['idContacto']) ? intval($_GET['idContacto']) : 0;
 $nombreContactoPre = isset($_GET['nombreContacto']) ? $_GET['nombreContacto'] : '';
+
+// Color del encabezado según el tipo de pedido: venta=verde, compra=rojo,
+// presupuesto=amarillo. El formulario en sí queda siempre en blanco; solo
+// cambia el encabezado (acá para el primer render, y por JS al cambiar el combo).
+function claseColorTipoPedido($idTipo) {
+    switch ((int)$idTipo) {
+        case 1:  return ['bg-success', 'text-white', 'btn-close-white']; // venta
+        case 2:  return ['bg-danger',  'text-white', 'btn-close-white']; // compra
+        case 3:  return ['bg-warning', 'text-dark',  'btn-close'];       // presupuesto
+        default: return ['bg-secondary', 'text-white', 'btn-close-white'];
+    }
+}
+$idTipoInicial = array_key_first($tipoPedido) ?: 1;
+[$claseFondoTipo, $claseTextoTipo, $claseCerrarTipo] = claseColorTipoPedido($idTipoInicial);
 ?>
 
-<div class="modal-header bg-primary text-white">
+<div class="modal-header <?php echo "$claseFondoTipo $claseTextoTipo"; ?>" id="modalHeaderPedido">
     <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Nuevo Pedido</h5>
-    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    <button type="button" class="btn-close <?php echo $claseCerrarTipo; ?>" id="btnCerrarModalPedido" data-bs-dismiss="modal"></button>
 </div>
 
 <div class="modal-body bg-light">
     <form id="formNuevoPedido">
-        <div class="container-fluid p-3 bg-success rounded shadow-sm">
+        <div class="container-fluid p-3 bg-white rounded shadow-sm">
 
             <input type="hidden" id="hidIdContacto" value="<?php echo $idContactoPre ?: ''; ?>">
 
             <div class="row mb-3">
                 <div class="col-12">
-                    <label class="form-label text-white fw-bold">Cliente:</label>
+                    <label class="form-label fw-bold">Cliente:</label>
 
                     <!-- Estado "cliente elegido": chip con nombre + ver historial.
                          Ojo: el layout va por estilo inline, no por .d-flex — esa clase
@@ -95,13 +109,13 @@ $nombreContactoPre = isset($_GET['nombreContacto']) ? $_GET['nombreContacto'] : 
             <div id="restoFormulario">
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label class="form-label text-white">Origen:</label>
+                        <label class="form-label">Origen:</label>
                         <select class="form-select" id="selIdOrigen" name="idOrigen">
                             <?php foreach ($origen as $id => $val) echo "<option value='$id'>$val</option>"; ?>
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label text-white">Tipo de Trabajo:</label>
+                        <label class="form-label">Tipo de Trabajo:</label>
                         <select class="form-select" id="selIdTipo" name="idTipoPedido">
                             <?php foreach ($tipoPedido as $id => $val) echo "<option value='$id'>$val</option>"; ?>
                         </select>
@@ -110,30 +124,30 @@ $nombreContactoPre = isset($_GET['nombreContacto']) ? $_GET['nombreContacto'] : 
 
                 <div class="row mb-3">
                     <div class="col-md-12">
-                        <label class="form-label text-white">Detalle:</label>
+                        <label class="form-label">Detalle:</label>
                         <textarea class="form-control" id="txtDetalle" name="detalle" rows="2"></textarea>
                     </div>
                     <div class="col-md-12">
-                        <label class="form-label text-white">Observaciones Internas:</label>
+                        <label class="form-label">Observaciones Internas:</label>
                         <textarea class="form-control" id="txtObservaciones" name="observaciones" rows="2"></textarea>
                     </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col-md-3">
-                        <label class="form-label text-white">Fecha Entrega:</label>
+                        <label class="form-label">Fecha Entrega:</label>
                         <input type="date" class="form-control" id="inpPrometido" name="prometido" value="<?php echo date("Y-m-d");?>">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label text-white">Monto Total $:</label>
+                        <label class="form-label">Monto Total $:</label>
                         <input type="number" class="form-control fw-bold" id="inpMonto" name="monto" value="0">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label text-white">Seña / Pago Parcial $:</label>
+                        <label class="form-label">Seña / Pago Parcial $:</label>
                         <input type="number" class="form-control" id="inpMontoPagado" name="montoPagado" value="0">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label text-white">Medio de Pago:</label>
+                        <label class="form-label">Medio de Pago:</label>
                         <select class="form-select" id="selMedioPago" name="idMedioPago">
                             <?php foreach ($medioPago as $id => $val) echo "<option value='$id'>$val</option>"; ?>
                         </select>
@@ -155,6 +169,26 @@ $nombreContactoPre = isset($_GET['nombreContacto']) ? $_GET['nombreContacto'] : 
 
 <script>
 $(document).ready(function() {
+
+    // Color del encabezado según el Tipo de Trabajo elegido (venta=verde,
+    // compra=rojo, presupuesto=amarillo). El formulario en sí se mantiene
+    // en blanco, solo cambia el encabezado — igual criterio que PHP arriba.
+    var COLORES_TIPO_PEDIDO = {
+        1: { fondo: 'bg-success',  texto: 'text-white', cerrar: 'btn-close-white' }, // venta
+        2: { fondo: 'bg-danger',   texto: 'text-white', cerrar: 'btn-close-white' }, // compra
+        3: { fondo: 'bg-warning',  texto: 'text-dark',  cerrar: 'btn-close' }        // presupuesto
+    };
+    function actualizarColorTipoPedido() {
+        var c = COLORES_TIPO_PEDIDO[$('#selIdTipo').val()] || { fondo: 'bg-secondary', texto: 'text-white', cerrar: 'btn-close-white' };
+        $('#modalHeaderPedido')
+            .removeClass('bg-success bg-danger bg-warning bg-secondary text-white text-dark')
+            .addClass(c.fondo + ' ' + c.texto);
+        $('#btnCerrarModalPedido')
+            .removeClass('btn-close-white')
+            .addClass(c.cerrar);
+    }
+    $('#selIdTipo').on('change', actualizarColorTipoPedido);
+    actualizarColorTipoPedido(); // por si el combo no arranca en la primera opción
 
     // SELECT2 CON BUSQUEDA REMOTA (Para manejar 17k contactos sin morir)
     $('#selContacto').select2({
