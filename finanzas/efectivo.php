@@ -161,7 +161,7 @@ $(document).ready(function() {
         let total = $('#totalEfectivo').data('valor-puro');
         
         // 1. Guardar en la DB vía AJAX
-        $.post('finanzas/ajaxEfectivo.php', $('#formEfectivo').serialize(), function(r) {
+        $.post('finanzas/ajaxCierre.php', $('#formEfectivo').serialize() + '&opcion=guardarArqueo', function(r) {
             // 2. Pasar el valor a la pantalla de finanzas (ID 1 suele ser Efectivo)
             $('#tablaCierre .inpMontoReal[data-id="1"]').val(total).trigger('change').addClass('is-valid');
             

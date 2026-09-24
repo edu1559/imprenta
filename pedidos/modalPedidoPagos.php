@@ -146,7 +146,7 @@ $('#btnNvoPago').click(function(){
 
     $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
 
-    $.post('finanzas/ajaxPagos.php', {
+    $.post('finanzas/ajaxCierre.php', {
         opcion: 'agregarPago',
         idPedido: '<?php echo $idPedido; ?>',
         monto: v_monto,

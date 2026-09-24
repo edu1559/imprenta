@@ -39,6 +39,7 @@ $result = mysqli_query($conn, $sql);
                 <th>Cliente / Detalle</th>
                 <th class="text-end">Monto</th>
                 <th>Mover a...</th>
+                <th class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -82,11 +83,21 @@ $result = mysqli_query($conn, $sql);
                         <?php endforeach; ?>
                     </select>
                 </td>
+                <td class="text-end">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary btn-sm btnEditarPagoDetalle" data-id="<?php echo $f['idPago']; ?>">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm btnBorrarPagoDetalle" data-id="<?php echo $f['idPago']; ?>">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
             </tr>
             <?php endwhile; ?>
             <?php else: ?>
             <tr>
-                <td colspan="5" class="text-center py-4 text-muted">No hay movimientos nuevos.</td>
+                <td colspan="6" class="text-center py-4 text-muted">No hay movimientos nuevos.</td>
             </tr>
             <?php endif; ?>
         </tbody>
@@ -96,6 +107,7 @@ $result = mysqli_query($conn, $sql);
                 <td class="text-end <?php echo ($totalDetalle < 0) ? 'text-danger' : 'text-primary'; ?>">
                     $<?php echo number_format($totalDetalle, 0, ',', '.'); ?>
                 </td>
+                <td></td>
                 <td></td>
             </tr>
         </tfoot>
@@ -116,8 +128,35 @@ $('.selMedioRapido').change(function() {
         }, function() {
             fila.fadeOut(300, function() {
                 // Actualizamos el tablero general para que los saldos coincidan
-                $('#contenido').load('finanzas/finanzas.php');
+                $('#contenido').load('finanzas/cierre.php');
             });
+        });
+    }
+});
+
+// Editar un pago puntual desde el detalle del medio
+$('.btnEditarPagoDetalle').click(function() {
+    let idPago = $(this).data('id');
+
+    if ($('#modalUniversal').length === 0) {
+        console.error("No existe el div #modalUniversal en el index.");
+        return;
+    }
+
+    $('#modalUniversal .modal-content').load('finanzas/modalEditarPago.php?idPago=' + idPago, function(response, status) {
+        if (status !== "error") {
+            $('#modalUniversal').modal('show');
+        }
+    });
+});
+
+// Borrar un pago puntual desde el detalle del medio
+$('.btnBorrarPagoDetalle').click(function() {
+    let idPago = $(this).data('id');
+    if (confirm("¿Seguro que deseas ELIMINAR el pago #" + idPago + "?")) {
+        $.post('finanzas/ajaxCierre.php', { opcion: 'borrarPago', id: idPago }, function(r) {
+            alert(r);
+            $('#contenido').load('finanzas/cierre.php');
         });
     }
 });

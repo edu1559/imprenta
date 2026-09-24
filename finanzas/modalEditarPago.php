@@ -55,10 +55,10 @@ $('#btnGuardarCambioPago').on('click', function() {
         idMedioPago: $('#editMedioPago').val()
     };
     
-    $.post('finanzas/ajaxPagos.php', datos, function(r) {
+    $.post('finanzas/ajaxCierre.php', datos, function(r) {
         alert(r);
         $('#modalUniversal').modal('hide');
-        $('#contenido').load('finanzas/pagos.php');
+        $('#contenido').load('finanzas/cierre.php');
     });
 });
 </script>
