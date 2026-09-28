@@ -1,8 +1,10 @@
 <?php
+session_start();
 include_once('../conexion.php');
+include_once('../auditoria.php');
 $conn = conectar();
 
-$idPedido = $_GET['idPedido'];
+$idPedido = (int)$_GET['idPedido'];
 
 $sql = "SELECT p.*, CONCAT(c.apellido, ' ', c.nombre) as nombreContacto
         ,u.usuario as cargo
@@ -39,6 +41,11 @@ function claseColorTipoPedido($idTipo) {
 [$claseFondoTipo, $claseTextoTipo, $claseCerrarTipo] = claseColorTipoPedido($reg['idTipoPedido']);
 
 $colorFondo = '#ffffff';
+
+$estadoPedido   = cargarPedido($conn, $idPedido);
+$cerrado        = pedidoCerrado($estadoPedido);
+$puedeModificar = puedeModificar($conn);
+$esAdmin        = esAdministrador($conn);
 ?>
 
 <div class="modal-header <?php echo "$claseFondoTipo $claseTextoTipo"; ?>" id="modalHeaderEditarPedido">
@@ -55,6 +62,13 @@ $colorFondo = '#ffffff';
         <div class="alert alert-info py-2 mb-3">
             <h6 class="mb-0"><strong>Cliente:</strong> <?php echo $reg['nombreContacto']; ?></h6>
         </div>
+
+        <?php if ($cerrado): ?>
+        <div class="alert alert-secondary py-2 mb-3 small">
+            <i class="bi bi-lock-fill"></i> Este pedido está <strong>cerrado</strong> (terminado, entregado y pagado) y no se puede modificar.
+            <?php echo $esAdmin ? 'Si hace falta corregirlo, reabrilo abajo.' : 'Si hace falta corregirlo, un administrador tiene que reabrirlo.'; ?>
+        </div>
+        <?php endif; ?>
 
         <div class="row mb-3">
             <div class="col-md-6">
@@ -164,9 +178,26 @@ $colorFondo = '#ffffff';
                 </select>
             </div>
         </div>
-        <button type="button" id="btnActualizarPedido" class="btn btn-warning btn-lg w-100 fw-bold">
+        <button type="button" id="btnActualizarPedido" class="btn btn-warning btn-lg w-100 fw-bold" <?php echo $cerrado ? 'disabled' : ''; ?>>
             <i class="bi bi-save"></i> ACTUALIZAR PEDIDO
         </button>
+
+        <?php if ($cerrado && $esAdmin): ?>
+        <button type="button" id="btnReabrirPedido" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+            <i class="bi bi-unlock"></i> Reabrir pedido
+        </button>
+        <?php elseif (!$cerrado && $puedeModificar): ?>
+            <?php if ($estadoPedido['cantPagos'] > 0): ?>
+            <button type="button" class="btn btn-outline-danger btn-sm w-100 mt-2" disabled>
+                <i class="bi bi-x-circle"></i> Anular pedido
+            </button>
+            <div class="small text-muted text-center mt-1">Para anularlo, primero borrá sus pagos desde Pagos del pedido.</div>
+            <?php else: ?>
+            <button type="button" id="btnAnularPedido" class="btn btn-outline-danger btn-sm w-100 mt-2">
+                <i class="bi bi-x-circle"></i> Anular pedido
+            </button>
+            <?php endif; ?>
+        <?php endif; ?>
     </form>
 </div>
 
@@ -214,6 +245,34 @@ $('#editIdTipoPedido').on('change', function() {
 
     valorTipoVigente = nuevo;
     actualizarColorTipoPedidoEditar();
+});
+
+// Anular y reabrir: piden motivo (obligatorio) y quedan registrados.
+function accionConMotivo(opcion, mensaje) {
+    let motivo = prompt(mensaje + '\n\nMotivo (obligatorio):');
+    if (motivo === null) return;
+    if (motivo.trim() === '') {
+        alert('Tenés que indicar el motivo.');
+        return;
+    }
+    $.post('pedidos/ajaxPedidos.php', {
+        opcion: opcion,
+        idPedido: $('#editIdPedido').val(),
+        motivo: motivo.trim()
+    }, function(res) {
+        alert(res);
+        if (res.trim().indexOf('✅') !== 0) return;
+        $('#modalUniversal').modal('hide');
+        $('#contenido').load('pedidos/pedidos.php');
+    });
+}
+
+$('#btnAnularPedido').on('click', function() {
+    accionConMotivo('anularPedido', 'Vas a ANULAR el pedido #' + $('#editIdPedido').val() + '. Deja de aparecer en listados y en Finanzas.');
+});
+
+$('#btnReabrirPedido').on('click', function() {
+    accionConMotivo('reabrirPedido', 'Vas a REABRIR el pedido #' + $('#editIdPedido').val() + '. La entrega vuelve a "Pendiente".');
 });
 
 $('#btnActualizarPedido').on('click', function() {

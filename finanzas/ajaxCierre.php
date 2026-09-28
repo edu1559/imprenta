@@ -242,6 +242,12 @@ switch ($opcion) {
         $monto       = (float)$_POST['monto'];
         $idMedioPago = (int)$_POST['idMedioPago'];
 
+        $pedido = cargarPedido($conn, $idPedido);
+        if (!$pedido || $pedido['anulado']) {
+            echo "❌ El pedido está anulado o no existe.";
+            break;
+        }
+
         $sqlPago = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
         $sqlPago->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
 
@@ -333,6 +339,11 @@ switch ($opcion) {
         }
         if (abs($monto) < 0.01) {
             echo "El monto del ajuste no puede ser cero.";
+            break;
+        }
+        $pedido = cargarPedido($conn, $idPedido);
+        if (!$pedido || $pedido['anulado']) {
+            echo "El pedido está anulado o no existe.";
             break;
         }
 

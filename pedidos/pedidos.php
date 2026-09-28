@@ -127,6 +127,7 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
         from pedidos p 
                 inner join contactos c 
                     on p.idContacto = c.id 
+                    and p.anulado = 0 -- los anulados no se listan (va en el join porque cada búsqueda arma su propio WHERE)
                 inner join usuarios u 
                     on u.id = p.idUsuario";
 
@@ -460,12 +461,19 @@ $('.btnEstado').click(function() {
         tipo: v_tipo,
         nuevoEstado: v_nuevo
     }, function(respuesta) {
+        // Definir iconos según el tipo para no perderlos
+        let icono = (v_tipo === 'entrega') ? 'bi-hand-index' : 'bi-gear-fill';
+
+        // Rechazado (pedido cerrado o anulado): dejamos el botón como estaba.
+        if (respuesta.trim() !== 'Estado actualizado') {
+            v_btn.html('<i class="bi ' + icono + '"></i>');
+            alert(respuesta);
+            return;
+        }
+
         // Restaurar icono y actualizar datos
         v_btn.data('actual', v_nuevo);
         v_btn.removeClass('btn-outline-danger btn-outline-warning btn-outline-success');
-        
-        // Definir iconos según el tipo para no perderlos
-        let icono = (v_tipo === 'entrega') ? 'bi-hand-index' : 'bi-gear-fill';
         v_btn.html('<i class="bi ' + icono + '"></i>');
 
         if (v_nuevo == 1) v_btn.addClass('btn-outline-danger');

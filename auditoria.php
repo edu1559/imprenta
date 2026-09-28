@@ -128,3 +128,19 @@ function describirPago($pago) {
     return '$' . number_format((float)$pago['monto'], 2, ',', '.') . ' en ' . ($pago['medio'] ?? $pago['idMedioPago'])
          . ' del ' . date('d/m/Y H:i', strtotime($pago['fecha']));
 }
+
+// Pedido con sus estados, si está anulado y cuántos pagos tiene.
+function cargarPedido($conn, $idPedido) {
+    $stmt = $conn->prepare("SELECT p.id, p.monto, p.montoPagado, p.anulado,
+                                   p.estadoProduccion, p.estadoEntrega, p.estadoPago,
+                                   (SELECT COUNT(*) FROM pagos pg WHERE pg.idPedido = p.id) AS cantPagos
+                            FROM pedidos p
+                            WHERE p.id = ?");
+    $stmt->bind_param('i', $idPedido);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_assoc();
+}
+
+function describirEstados($pedido) {
+    return 'producción ' . $pedido['estadoProduccion'] . ', entrega ' . $pedido['estadoEntrega'] . ', pago ' . $pedido['estadoPago'];
+}

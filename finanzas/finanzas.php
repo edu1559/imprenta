@@ -76,6 +76,7 @@ function metricaSaldo($conn, $idTipo, $desdeSQL, $hastaSQL) {
     $stmt = $conn->prepare("SELECT COUNT(*) cant, COALESCE(SUM(p.monto - p.montoPagado),0) total
                              FROM pedidos p
                              WHERE p.idTipoPedido = ? AND (p.monto - p.montoPagado) > 0.01
+                               AND p.anulado = 0
                                AND p.entrada >= ? AND p.entrada < ?");
     $stmt->bind_param('iss', $idTipo, $desdeSQL, $hastaSQL);
     $stmt->execute();
@@ -95,12 +96,12 @@ if ($alcance === 'presupuestos') {
     $stmt = $conn->prepare("SELECT COUNT(*) cant, COALESCE(SUM(monto),0) totalPresupuestado,
                                     COALESCE(SUM(montoPagado),0) totalSenado,
                                     COALESCE(SUM(monto-montoPagado),0) saldo
-                             FROM pedidos WHERE idTipoPedido = 3 AND entrada >= ? AND entrada < ?");
+                             FROM pedidos WHERE idTipoPedido = 3 AND anulado = 0 AND entrada >= ? AND entrada < ?");
     $stmt->bind_param('ss', $fechaDesdeSQL, $fechaHastaSQL);
     $stmt->execute();
     $presupuestos = $stmt->get_result()->fetch_assoc();
 } elseif ($alcance === 'todo') {
-    $stmt = $conn->prepare("SELECT COUNT(*) cant FROM pedidos WHERE idTipoPedido = 3 AND entrada >= ? AND entrada < ?");
+    $stmt = $conn->prepare("SELECT COUNT(*) cant FROM pedidos WHERE idTipoPedido = 3 AND anulado = 0 AND entrada >= ? AND entrada < ?");
     $stmt->bind_param('ss', $fechaDesdeSQL, $fechaHastaSQL);
     $stmt->execute();
     $cantPresupuestosInfo = $stmt->get_result()->fetch_assoc()['cant'];
@@ -135,7 +136,7 @@ function detallePedidos($conn, array $tipos, $soloConSaldo, $desdeSQL, $hastaSQL
                              FROM pedidos p
                              INNER JOIN contactos c ON c.id = p.idContacto
                              LEFT JOIN tipoPedido tp ON tp.id = p.idTipoPedido
-                             WHERE p.idTipoPedido IN ($in) $filtroSaldo
+                             WHERE p.idTipoPedido IN ($in) $filtroSaldo AND p.anulado = 0
                                AND p.entrada >= ? AND p.entrada < ?
                              ORDER BY $orden LIMIT 200");
     $stmt->bind_param('ss', $desdeSQL, $hastaSQL);

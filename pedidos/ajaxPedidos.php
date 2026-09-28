@@ -111,13 +111,14 @@ switch ($opcion){
 
     // El monto pagado ya no se edita acá: solo cambia con pagos (cargar,
     // borrar o ajustar). El estado de pago se deduce de lo pagado.
-    $stmt = $conn->prepare("SELECT monto, montoPagado FROM pedidos WHERE id = ?");
     $idPedidoInt = (int)$idPedido;
-    $stmt->bind_param('i', $idPedidoInt);
-    $stmt->execute();
-    $actual = $stmt->get_result()->fetch_assoc();
+    $actual = cargarPedido($conn, $idPedidoInt);
     if (!$actual) {
         echo "❌ No se encontró el pedido.";
+        break;
+    }
+    if ($error = bloqueoEdicionPedido($actual)) {
+        echo "❌ " . $error;
         break;
     }
     $idEstadoPago = calcularEstadoPago($monto, (float)$actual['montoPagado']);
@@ -154,6 +155,12 @@ case 'cerrarPedido':
     $monto   = $_POST['monto'];
     $montoPagado = $_POST['montoPagado'];
     $idMedio = $_POST['idMedio'];
+
+    $actual = cargarPedido($conn, (int)$id);
+    if (!$actual || $actual['anulado']) {
+        echo "❌ El pedido está anulado.";
+        break;
+    }
     
 
      //   calculo el pago 
@@ -197,6 +204,16 @@ case 'modificarEstado':
         $tipo        = $_POST['tipo']; // 'entrega' o 'Produccion'
         $nuevoEstado = $_POST['nuevoEstado'];
 
+        $actual = cargarPedido($conn, (int)$idPedido);
+        if (!$actual) {
+            echo "No se encontró el pedido.";
+            break;
+        }
+        if ($error = bloqueoEdicionPedido($actual)) {
+            echo $error;
+            break;
+        }
+
     // Mapeamos el nombre del botón con el nombre real de la columna en la DB
     // Si en el JS dice 'entrega', la columna es 'estadoEntrega'
     // Si en el JS dice 'Produccion', la columna es 'estadoProduccion'
@@ -211,7 +228,106 @@ case 'modificarEstado':
     }
 
     break;
+
+// -------------------------------------------------------------
+// Anular: solo pedidos en proceso y sin pagos (si tiene pagos, primero
+// se borran, y eso queda registrado). El pedido queda en la base pero
+// deja de aparecer en listados y Finanzas.
+// -------------------------------------------------------------
+case 'anularPedido':
+    $idPedido = (int)$_POST['idPedido'];
+    $motivo   = trim($_POST['motivo'] ?? '');
+
+    if (!puedeModificar($conn)) {
+        echo "❌ No tenés permiso para anular pedidos. Tiene que ser un administrador o un usuario habilitado, logueado.";
+        break;
+    }
+    if ($motivo === '') {
+        echo "❌ Falta el motivo.";
+        break;
+    }
+    $pedido = cargarPedido($conn, $idPedido);
+    if (!$pedido) {
+        echo "❌ No se encontró el pedido.";
+        break;
+    }
+    if ($pedido['anulado']) {
+        echo "❌ El pedido ya está anulado.";
+        break;
+    }
+    if (pedidoCerrado($pedido)) {
+        echo "❌ El pedido está cerrado y no se puede anular.";
+        break;
+    }
+    if ($pedido['cantPagos'] > 0) {
+        echo "❌ El pedido tiene pagos. Primero borralos (desde Pagos del pedido) y después anulalo.";
+        break;
+    }
+
+    mysqli_begin_transaction($conn);
+    try {
+        $stmt = $conn->prepare("UPDATE pedidos SET anulado = 1 WHERE id = ?");
+        $stmt->bind_param('i', $idPedido);
+        $stmt->execute();
+        registrarModificacion($conn, 'pedido', $idPedido, $idPedido, 'anular', '$' . $pedido['monto'], null, $motivo);
+        mysqli_commit($conn);
+        echo "✅ Pedido #$idPedido anulado.";
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        echo "❌ Error al anular: " . $e->getMessage();
+    }
+    break;
+
+// -------------------------------------------------------------
+// Reabrir un pedido cerrado: solo administradores, con motivo. La entrega
+// vuelve a "Pendiente", así deja de estar cerrado y le vuelven a aplicar
+// las reglas de un pedido en proceso.
+// -------------------------------------------------------------
+case 'reabrirPedido':
+    $idPedido = (int)$_POST['idPedido'];
+    $motivo   = trim($_POST['motivo'] ?? '');
+
+    if (!esAdministrador($conn)) {
+        echo "❌ Solo un administrador logueado puede reabrir un pedido.";
+        break;
+    }
+    if ($motivo === '') {
+        echo "❌ Falta el motivo.";
+        break;
+    }
+    $pedido = cargarPedido($conn, $idPedido);
+    if (!$pedido || $pedido['anulado']) {
+        echo "❌ No se encontró el pedido.";
+        break;
+    }
+    if (!pedidoCerrado($pedido)) {
+        echo "❌ El pedido no está cerrado.";
+        break;
+    }
+
+    mysqli_begin_transaction($conn);
+    try {
+        $stmt = $conn->prepare("UPDATE pedidos SET estadoEntrega = 1 WHERE id = ?");
+        $stmt->bind_param('i', $idPedido);
+        $stmt->execute();
+        $reabierto = ['estadoEntrega' => 1] + $pedido;
+        registrarModificacion($conn, 'pedido', $idPedido, $idPedido, 'reabrir',
+                              describirEstados($pedido), describirEstados($reabierto), $motivo);
+        mysqli_commit($conn);
+        echo "✅ Pedido #$idPedido reabierto.";
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        echo "❌ Error al reabrir: " . $e->getMessage();
+    }
+    break;
 };
+
+// Motivo por el que un pedido no se puede editar (null si se puede).
+function bloqueoEdicionPedido($pedido) {
+    if ($pedido['anulado']) return "El pedido está anulado.";
+    if (pedidoCerrado($pedido)) return "El pedido está cerrado. Para modificarlo, un administrador tiene que reabrirlo.";
+    return null;
+}
 
 
 

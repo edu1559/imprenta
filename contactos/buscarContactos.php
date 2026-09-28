@@ -27,7 +27,7 @@ $sql = "SELECT c.id, CONCAT(c.apellido, ', ', c.nombre) AS text, c.telefono,
                COUNT(p.id) AS pedidos,
                COALESCE(SUM(p.monto - p.montoPagado), 0) AS saldo
         FROM contactos c
-        LEFT JOIN pedidos p ON p.idContacto = c.id
+        LEFT JOIN pedidos p ON p.idContacto = c.id AND p.anulado = 0
         WHERE $where
         GROUP BY c.id, c.apellido, c.nombre, c.telefono
         ORDER BY c.apellido ASC, c.nombre ASC

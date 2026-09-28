@@ -18,7 +18,7 @@ $sql = "SELECT p.id,
                p.estadoEntrega,
                p.estadoPago
         FROM pedidos p
-        WHERE p.idContacto = $idContacto
+        WHERE p.idContacto = $idContacto AND p.anulado = 0
         ORDER BY p.id DESC";
 $resPedidos = mysqli_query($conn, $sql);
 ?>
