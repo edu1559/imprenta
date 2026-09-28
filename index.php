@@ -179,6 +179,15 @@ $(document).ready(function() {
 
     reiniciarContador(); // Iniciar al cargar
 
+    // Los ajax de trabajadores responden 401 si no hay sesión (ver sesion.php):
+    // no se grabó nada, así que mostramos el aviso para volver a ingresar.
+    $(document).ajaxError(function(e, xhr) {
+        if (xhr.status === 401) {
+            $('.modal.show').not('#modalExpiracion').modal('hide');
+            $('#modalExpiracion').modal('show');
+        }
+    });
+
    
 
 </script>

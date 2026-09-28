@@ -4,15 +4,9 @@
 // y el registro en la tabla 'modificaciones'.
 // Requiere session_start() y una conexión mysqli ya abierta.
 
-const ID_USUARIO_VISITANTE = 1;
-const ID_PERFIL_ADMINISTRADOR = 1;
+include_once(__DIR__ . '/sesion.php');
 
-// index.php asigna el usuario 1 ("visitante") cuando no hay sesión;
-// eso no cuenta como usuario logueado.
-function usuarioLogueado() {
-    $id = (int)($_SESSION['idUsuario'] ?? 0);
-    return $id > 0 && $id !== ID_USUARIO_VISITANTE;
-}
+const ID_PERFIL_ADMINISTRADOR = 1;
 
 function datosUsuarioActual($conn) {
     if (!usuarioLogueado()) return null;

@@ -5,7 +5,8 @@ include_once('../auditoria.php');
 $conn = conectar();
 
 $opcion = $_POST['opcion'] ?? $_GET['opcion'] ?? '';
-$idUsuario = $_SESSION['idUsuario'] ?? 1;
+exigirTrabajadorAjax();
+$idUsuario = (int)$_SESSION['idUsuario'];
 
 switch ($opcion) {
 

@@ -4,6 +4,10 @@ include_once('../conexion.php');
 include_once('../auditoria.php');
 $conn = conectar();
 
+// El panel de pedidos es solo para trabajadores: sin sesión no se graba nada.
+exigirTrabajadorAjax();
+$idUsuario = (int)$_SESSION['idUsuario'];
+
 // Usamos $_POST en lugar de $_GET
 if(isset($_POST['opcion'])){
     $opcion = $_POST['opcion'];
@@ -12,13 +16,6 @@ if(isset($_POST['opcion'])){
     die("No se recibieron datos");
 }
 
-
-// Manejo de sesión (igual que lo tenías)
-if(isset($_SESSION['idUsuario'])){
-    $idUsuario = $_SESSION['idUsuario'];
-} else {
-    $idUsuario = 1;
-}
 
 switch ($opcion){
 

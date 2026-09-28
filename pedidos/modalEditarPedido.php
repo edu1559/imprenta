@@ -2,6 +2,7 @@
 session_start();
 include_once('../conexion.php');
 include_once('../auditoria.php');
+exigirTrabajadorPagina();
 $conn = conectar();
 
 $idPedido = (int)$_GET['idPedido'];
