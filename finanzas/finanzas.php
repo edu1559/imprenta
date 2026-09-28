@@ -107,72 +107,80 @@ if ($alcance === 'presupuestos') {
 }
 
 // ---------------------------------------------------------------------
-// Detalle: solo se arma cuando hay un tipoMov específico elegido (no
-// "Todos"), o siempre que el alcance sea "presupuestos".
+// Detalle: siempre hay una tabla. Con "Todos" se listan los pedidos del
+// alcance elegido (o todos los pagos, si el alcance es "Solo pagos").
+// $tipos son ids de tipoPedido (enteros fijos, van directo al IN).
 // ---------------------------------------------------------------------
-function detallePagos($conn, $idTipo, $desdeSQL, $hastaSQL) {
-    $stmt = $conn->prepare("SELECT pg.fecha, pg.idPedido, CONCAT(c.apellido,' ',c.nombre) cliente, p.detalle, mp.medio, pg.monto, u.usuario
+function detallePagos($conn, array $tipos, $desdeSQL, $hastaSQL) {
+    $in = implode(',', array_map('intval', $tipos));
+    $stmt = $conn->prepare("SELECT pg.fecha, pg.idPedido, p.idTipoPedido, tp.tipo, CONCAT(c.apellido,' ',c.nombre) cliente, p.detalle, mp.medio, pg.monto, u.usuario
                              FROM pagos pg
                              INNER JOIN pedidos p ON p.id = pg.idPedido
                              INNER JOIN contactos c ON c.id = p.idContacto
+                             LEFT JOIN tipoPedido tp ON tp.id = p.idTipoPedido
                              LEFT JOIN mediosPago mp ON mp.id = pg.idMedioPago
                              LEFT JOIN usuarios u ON u.id = pg.idUsuario
-                             WHERE p.idTipoPedido = ? AND pg.fecha >= ? AND pg.fecha < ?
+                             WHERE p.idTipoPedido IN ($in) AND pg.fecha >= ? AND pg.fecha < ?
                              ORDER BY pg.fecha DESC LIMIT 200");
-    $stmt->bind_param('iss', $idTipo, $desdeSQL, $hastaSQL);
-    $stmt->execute();
-    return $stmt->get_result();
-}
-
-function detalleSaldo($conn, $idTipo, $desdeSQL, $hastaSQL) {
-    $stmt = $conn->prepare("SELECT p.id, p.entrada, CONCAT(c.apellido,' ',c.nombre) cliente, p.detalle, p.monto, p.montoPagado, (p.monto-p.montoPagado) saldo
-                             FROM pedidos p INNER JOIN contactos c ON c.id = p.idContacto
-                             WHERE p.idTipoPedido = ? AND (p.monto-p.montoPagado) > 0.01
-                               AND p.entrada >= ? AND p.entrada < ?
-                             ORDER BY saldo DESC LIMIT 200");
-    $stmt->bind_param('iss', $idTipo, $desdeSQL, $hastaSQL);
-    $stmt->execute();
-    return $stmt->get_result();
-}
-
-function detallePresupuestos($conn, $desdeSQL, $hastaSQL) {
-    $stmt = $conn->prepare("SELECT p.id, p.entrada, CONCAT(c.apellido,' ',c.nombre) cliente, p.detalle, p.monto, p.montoPagado, (p.monto-p.montoPagado) saldo
-                             FROM pedidos p INNER JOIN contactos c ON c.id = p.idContacto
-                             WHERE p.idTipoPedido = 3
-                               AND p.entrada >= ? AND p.entrada < ?
-                             ORDER BY p.entrada DESC LIMIT 200");
     $stmt->bind_param('ss', $desdeSQL, $hastaSQL);
     $stmt->execute();
     return $stmt->get_result();
 }
 
-$filaDetalle = null; // filas a listar
-$columnasDetalle = null; // 'pagos' | 'saldo'
-$tituloDetalle = '';
+function detallePedidos($conn, array $tipos, $soloConSaldo, $desdeSQL, $hastaSQL) {
+    $in = implode(',', array_map('intval', $tipos));
+    $filtroSaldo = $soloConSaldo ? 'AND (p.monto-p.montoPagado) > 0.01' : '';
+    $orden = $soloConSaldo ? 'saldo DESC' : 'p.entrada DESC';
+    $stmt = $conn->prepare("SELECT p.id, p.entrada, p.idTipoPedido, tp.tipo, CONCAT(c.apellido,' ',c.nombre) cliente, p.detalle, p.monto, p.montoPagado, (p.monto-p.montoPagado) saldo
+                             FROM pedidos p
+                             INNER JOIN contactos c ON c.id = p.idContacto
+                             LEFT JOIN tipoPedido tp ON tp.id = p.idTipoPedido
+                             WHERE p.idTipoPedido IN ($in) $filtroSaldo
+                               AND p.entrada >= ? AND p.entrada < ?
+                             ORDER BY $orden LIMIT 200");
+    $stmt->bind_param('ss', $desdeSQL, $hastaSQL);
+    $stmt->execute();
+    return $stmt->get_result();
+}
+
+$columnasDetalle = 'saldo'; // 'pagos' | 'saldo'
 
 if ($alcance === 'presupuestos') {
-    $filaDetalle = detallePresupuestos($conn, $fechaDesdeSQL, $fechaHastaSQL);
-    $columnasDetalle = 'saldo';
+    $filaDetalle = detallePedidos($conn, [3], false, $fechaDesdeSQL, $fechaHastaSQL);
     $tituloDetalle = 'Presupuestos del período';
 } elseif ($tipoMov === 'ingresos') {
-    $filaDetalle = detallePagos($conn, 1, $fechaDesdeSQL, $fechaHastaSQL);
+    $filaDetalle = detallePagos($conn, [1], $fechaDesdeSQL, $fechaHastaSQL);
     $columnasDetalle = 'pagos';
     $tituloDetalle = 'Ingresos (pagos de ventas)';
 } elseif ($tipoMov === 'egresos') {
-    $filaDetalle = detallePagos($conn, 2, $fechaDesdeSQL, $fechaHastaSQL);
+    $filaDetalle = detallePagos($conn, [2], $fechaDesdeSQL, $fechaHastaSQL);
     $columnasDetalle = 'pagos';
     $tituloDetalle = 'Egresos (pagos de compras)';
 } elseif ($tipoMov === 'nosDeben') {
-    $filaDetalle = detalleSaldo($conn, 1, $fechaDesdeSQL, $fechaHastaSQL);
-    $columnasDetalle = 'saldo';
+    $filaDetalle = detallePedidos($conn, [1], true, $fechaDesdeSQL, $fechaHastaSQL);
     $tituloDetalle = 'Nos deben (ventas con saldo pendiente)';
 } elseif ($tipoMov === 'debemos') {
-    $filaDetalle = detalleSaldo($conn, 2, $fechaDesdeSQL, $fechaHastaSQL);
-    $columnasDetalle = 'saldo';
+    $filaDetalle = detallePedidos($conn, [2], true, $fechaDesdeSQL, $fechaHastaSQL);
     $tituloDetalle = 'Debemos (compras con saldo pendiente)';
+} elseif ($alcance === 'pagos') {
+    $filaDetalle = detallePagos($conn, [1, 2], $fechaDesdeSQL, $fechaHastaSQL);
+    $columnasDetalle = 'pagos';
+    $tituloDetalle = 'Pagos del período (ventas y compras)';
+} elseif ($alcance === 'todo') {
+    $filaDetalle = detallePedidos($conn, [1, 2, 3], false, $fechaDesdeSQL, $fechaHastaSQL);
+    $tituloDetalle = 'Pedidos, compras y presupuestos del período';
+} else {
+    $filaDetalle = detallePedidos($conn, [1, 2], false, $fechaDesdeSQL, $fechaHastaSQL);
+    $tituloDetalle = 'Pedidos y compras del período';
 }
-// tipoMov === 'todos' y alcance !== 'presupuestos': sin tabla de detalle,
-// solo el panel de resumen con las 4 tarjetas.
+
+// Badge del tipo de pedido, mismos colores que el modal de pedido
+// (venta=verde, compra=rojo, presupuesto=amarillo).
+function badgeTipo($idTipo, $tipo) {
+    $clases = [1 => 'bg-success', 2 => 'bg-danger', 3 => 'bg-warning text-dark'];
+    $clase = $clases[(int)$idTipo] ?? 'bg-secondary';
+    return '<span class="badge ' . $clase . '">' . htmlspecialchars(ucfirst($tipo ?? '-')) . '</span>';
+}
 
 function fmt($n) { return number_format((float)$n, 2, ',', '.'); }
 
@@ -350,7 +358,6 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if ($filaDetalle !== null): ?>
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-dark text-white py-2">
             <?php echo htmlspecialchars($tituloDetalle); ?>
@@ -363,6 +370,7 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
                         <tr>
                             <th>Fecha</th>
                             <th>Pedido</th>
+                            <th>Tipo</th>
                             <th>Cliente</th>
                             <th>Detalle</th>
                             <th>Medio de Pago</th>
@@ -372,11 +380,12 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
                     </thead>
                     <tbody>
                         <?php if ($filaDetalle->num_rows === 0): ?>
-                            <tr><td colspan="7" class="text-center text-muted py-4">Sin registros en el período.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-4">Sin registros en el período.</td></tr>
                         <?php else: while ($f = $filaDetalle->fetch_assoc()): ?>
                         <tr>
                             <td class="small"><?php echo date('d/m/y H:i', strtotime($f['fecha'])); ?></td>
                             <td class="fw-bold">#<?php echo $f['idPedido']; ?></td>
+                            <td><?php echo badgeTipo($f['idTipoPedido'], $f['tipo']); ?></td>
                             <td><?php echo htmlspecialchars($f['cliente']); ?></td>
                             <td class="small text-truncate" style="max-width:250px;" title="<?php echo htmlspecialchars($f['detalle']); ?>"><?php echo htmlspecialchars($f['detalle']); ?></td>
                             <td class="small"><?php echo htmlspecialchars($f['medio'] ?? '-'); ?></td>
@@ -390,6 +399,7 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
                         <tr>
                             <th>Pedido</th>
                             <th>Fecha</th>
+                            <th>Tipo</th>
                             <th>Cliente</th>
                             <th>Detalle</th>
                             <th class="text-end">Total</th>
@@ -399,11 +409,12 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
                     </thead>
                     <tbody>
                         <?php if ($filaDetalle->num_rows === 0): ?>
-                            <tr><td colspan="7" class="text-center text-muted py-4">Sin registros en el período.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-4">Sin registros en el período.</td></tr>
                         <?php else: while ($f = $filaDetalle->fetch_assoc()): ?>
                         <tr>
                             <td class="fw-bold">#<?php echo $f['id']; ?></td>
                             <td class="small"><?php echo date('d/m/y', strtotime($f['entrada'])); ?></td>
+                            <td><?php echo badgeTipo($f['idTipoPedido'], $f['tipo']); ?></td>
                             <td><?php echo htmlspecialchars($f['cliente']); ?></td>
                             <td class="small text-truncate" style="max-width:250px;" title="<?php echo htmlspecialchars($f['detalle']); ?>"><?php echo htmlspecialchars($f['detalle']); ?></td>
                             <td class="text-end">$<?php echo fmt($f['monto']); ?></td>
@@ -417,7 +428,6 @@ while ($m = mysqli_fetch_assoc($resMedios)) { $medios[] = $m; }
             </div>
         </div>
     </div>
-    <?php endif; ?>
 
 </div>
 
