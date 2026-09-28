@@ -1,11 +1,10 @@
 <?php
-
+    session_start();
     include_once('../conexion.php');
+    include_once('../auditoria.php');
 	$conn = conectar();
     
-    if(isset($_GET['opcion'])){
-        $opcion = $_GET['opcion'];
-    };
+    $opcion = $_GET['opcion'] ?? $_POST['opcion'] ?? '';
    // echo $opcion;
   
     switch ($opcion){
@@ -65,8 +64,18 @@
                
     
        break;
-    
-    
+
+     case 'permisoModificar':
+            if (!esAdministrador($conn)) {
+                echo "Solo un administrador logueado puede cambiar este permiso.";
+                break;
+            }
+            $id = (int)$_POST['id'];
+            $valor = ((int)$_POST['valor'] === 1) ? 1 : 0;
+            $stmt = $conn->prepare("UPDATE usuarios SET puedeModificar = ? WHERE id = ?");
+            $stmt->bind_param('ii', $valor, $id);
+            echo $stmt->execute() ? "OK" : "Error al guardar el permiso.";
+       break;
     
     };
 

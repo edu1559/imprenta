@@ -1,6 +1,7 @@
 <?php
 session_start();
 include_once('../conexion.php');
+include_once('../auditoria.php');
 $conn = conectar();
 
 $opcion = $_POST['opcion'] ?? $_GET['opcion'] ?? '';
@@ -28,9 +29,16 @@ switch ($opcion) {
         $montoCalculado = (float)$_POST['montoCalculado'];
         $dif = $montoReal - $montoCalculado;
 
+        $anterior = estadoCierreMedios($conn, $idM);
+
         $stmt = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = NOW() WHERE idMedio = ?");
         $stmt->bind_param('ddi', $montoReal, $dif, $idM);
-        echo $stmt->execute() ? "Cierre parcial exitoso" : "Error";
+        if ($stmt->execute()) {
+            registrarModificacion($conn, 'cierre', $idM, null, 'cierreParcial', json_encode($anterior), (string)$montoReal, 'Cierre parcial');
+            echo "Cierre parcial exitoso";
+        } else {
+            echo "Error";
+        }
         break;
 
     // -------------------------------------------------------------
@@ -46,12 +54,17 @@ switch ($opcion) {
         // suma generada por diseño y no se carga acá).
         $columnasCierre = ['efectivo', 'transferencia', 'mercadoPago', 'cheques', 'dolares', 'brubank', 'naranjaX'];
 
+        // Una sola fecha para el historial y para cada medio: así, al borrar
+        // el cierre, se sabe qué medios siguen apuntando a él.
+        $ahora = date('Y-m-d H:i:s');
+
         mysqli_begin_transaction($conn);
 
         try {
             $valoresCierre = array_fill_keys($columnasCierre, 0);
+            $estadoAnterior = estadoCierreMedios($conn);
 
-            $stmtUpd = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = NOW() WHERE idMedio = ?");
+            $stmtUpd = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = ? WHERE idMedio = ?");
             $stmtNombre = $conn->prepare("SELECT medio FROM cierreMedios WHERE idMedio = ?");
 
             foreach ($medios as $m) {
@@ -59,7 +72,7 @@ switch ($opcion) {
                 $real = (float)$m['real'];
                 $dif = $real - (float)$m['calc'];
 
-                $stmtUpd->bind_param('ddi', $real, $dif, $id);
+                $stmtUpd->bind_param('ddsi', $real, $dif, $ahora, $id);
                 $stmtUpd->execute();
 
                 $stmtNombre->bind_param('i', $id);
@@ -76,15 +89,20 @@ switch ($opcion) {
             $cols = array_keys($valoresCierre);
             $placeholders = implode(',', array_fill(0, count($cols), '?'));
             $sqlHistorial = "INSERT INTO cierre (fecha, " . implode(',', $cols) . ", diferencia, idUsuarioCierre)
-                             VALUES (NOW(), $placeholders, ?, ?)";
+                             VALUES (?, $placeholders, ?, ?)";
 
             $stmtHist = $conn->prepare($sqlHistorial);
-            $tipos = str_repeat('d', count($cols)) . 'di';
-            $valores = array_values($valoresCierre);
+            $tipos = 's' . str_repeat('d', count($cols)) . 'di';
+            $valores = array_merge([$ahora], array_values($valoresCierre));
             $valores[] = $totalDif;
             $valores[] = $idUsuario;
             $stmtHist->bind_param($tipos, ...$valores);
             $stmtHist->execute();
+            $idCierre = $conn->insert_id;
+
+            // Guardamos cómo estaban los medios antes de cerrar: es lo que
+            // permite deshacer el cierre si se borra del historial.
+            registrarModificacion($conn, 'cierre', $idCierre, null, 'cierreTotal', json_encode($estadoAnterior), null, 'Cierre total');
 
             mysqli_commit($conn);
             echo "✅ Cierre total completado con éxito. Historial actualizado.";
@@ -94,11 +112,78 @@ switch ($opcion) {
         }
         break;
 
+    // -------------------------------------------------------------
+    // Borrar un cierre del historial y deshacerlo: los medios que todavía
+    // apuntan a ese cierre vuelven a su fecha y saldo anteriores.
+    // Solo administradores, con motivo.
+    // -------------------------------------------------------------
     case 'eliminarCierre':
         $id = (int)$_POST['id'];
-        $stmt = $conn->prepare("DELETE FROM cierre WHERE id = ?");
+        $motivo = trim($_POST['motivo'] ?? '');
+
+        if (!esAdministrador($conn)) {
+            echo "Solo un administrador logueado puede borrar un cierre.";
+            break;
+        }
+        if ($motivo === '') {
+            echo "Falta el motivo.";
+            break;
+        }
+
+        $stmt = $conn->prepare("SELECT fecha FROM cierre WHERE id = ?");
         $stmt->bind_param('i', $id);
-        echo $stmt->execute() ? "OK" : "Error";
+        $stmt->execute();
+        $cierre = $stmt->get_result()->fetch_assoc();
+        if (!$cierre) {
+            echo "No se encontró el cierre.";
+            break;
+        }
+
+        // Medios cuyo último cierre es este (si después hubo otro cierre,
+        // ese medio ya no depende de este y no se toca).
+        $stmt = $conn->prepare("SELECT idMedio FROM cierreMedios WHERE fechaUC = ?");
+        $stmt->bind_param('s', $cierre['fecha']);
+        $stmt->execute();
+        $mediosAfectados = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'idMedio');
+
+        $anterior = null;
+        if ($mediosAfectados) {
+            $stmt = $conn->prepare("SELECT valorAnterior FROM modificaciones
+                                    WHERE entidad = 'cierre' AND accion = 'cierreTotal' AND idEntidad = ?
+                                    ORDER BY id DESC LIMIT 1");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $fila = $stmt->get_result()->fetch_assoc();
+            $anterior = $fila ? json_decode($fila['valorAnterior'], true) : null;
+
+            if (!$anterior) {
+                echo "Este cierre es anterior al registro de cambios y no se puede deshacer automáticamente.";
+                break;
+            }
+        }
+
+        mysqli_begin_transaction($conn);
+        try {
+            $upd = $conn->prepare("UPDATE cierreMedios SET fechaUC = ?, montoUC = ?, diferenciaUC = ? WHERE idMedio = ?");
+            foreach ($mediosAfectados as $idM) {
+                $previo = $anterior[$idM] ?? null;
+                if (!$previo) continue;
+                $upd->bind_param('sddi', $previo['fechaUC'], $previo['montoUC'], $previo['diferenciaUC'], $idM);
+                $upd->execute();
+            }
+
+            $del = $conn->prepare("DELETE FROM cierre WHERE id = ?");
+            $del->bind_param('i', $id);
+            $del->execute();
+
+            registrarModificacion($conn, 'cierre', $id, null, 'borrar', $cierre['fecha'], null, $motivo);
+
+            mysqli_commit($conn);
+            echo "OK";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "Error: " . $e->getMessage();
+        }
         break;
 
     // -------------------------------------------------------------
@@ -137,31 +222,11 @@ switch ($opcion) {
         $monto       = (float)$_POST['monto'];
         $idMedioPago = (int)$_POST['idMedioPago'];
 
-        $sqlCheck = $conn->prepare("SELECT monto, montoPagado FROM pedidos WHERE id = ?");
-        $sqlCheck->bind_param('i', $idPedido);
-        $sqlCheck->execute();
-        $pedido = $sqlCheck->get_result()->fetch_assoc();
-
-        $montoTotal          = (float)$pedido['monto'];
-        $montoPagadoAnterior = (float)$pedido['montoPagado'];
-
         $sqlPago = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
         $sqlPago->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
 
         if ($sqlPago->execute()) {
-            $nuevoTotalPagado = $montoPagadoAnterior + $monto;
-
-            if (abs($montoTotal - $nuevoTotalPagado) < 0.1) {
-                $estadoPago = 3; // Pagado
-                $nuevoTotalPagado = $montoTotal;
-            } else {
-                $estadoPago = 2; // Pago Parcial
-            }
-
-            $sqlUpd = $conn->prepare("UPDATE pedidos SET montoPagado = ?, estadoPago = ? WHERE id = ?");
-            $sqlUpd->bind_param('dii', $nuevoTotalPagado, $estadoPago, $idPedido);
-
-            echo $sqlUpd->execute() ? "✅ Pago registrado y pedido actualizado." : "❌ Error al actualizar pedido: " . mysqli_error($conn);
+            echo recalcularPagosPedido($conn, $idPedido) ? "✅ Pago registrado y pedido actualizado." : "❌ Error al actualizar pedido: " . mysqli_error($conn);
         } else {
             echo "❌ Error al guardar el pago.";
         }
@@ -182,21 +247,13 @@ switch ($opcion) {
             break;
         }
 
-        $idPedido      = $pagoAnterior['idPedido'];
-        $montoAnterior = (float)$pagoAnterior['monto'];
-        $diferencia    = $nuevoMonto - $montoAnterior;
+        $idPedido = (int)$pagoAnterior['idPedido'];
 
         $sqlUpdPago = $conn->prepare("UPDATE pagos SET monto = ?, idMedioPago = ? WHERE id = ?");
         $sqlUpdPago->bind_param('dii', $nuevoMonto, $idMedioPago, $idPago);
 
         if ($sqlUpdPago->execute()) {
-            // Ajustamos el pedido por la diferencia entre el monto viejo y el nuevo
-            $sqlUpdPedido = $conn->prepare("UPDATE pedidos SET
-                                            montoPagado = montoPagado + ?,
-                                            estadoPago = IF(monto - (montoPagado + ?) <= 0.1, 3, 2)
-                                            WHERE id = ?");
-            $sqlUpdPedido->bind_param('ddi', $diferencia, $diferencia, $idPedido);
-            echo $sqlUpdPedido->execute() ? "✅ Pago actualizado." : "❌ Error al actualizar el pedido.";
+            echo recalcularPagosPedido($conn, $idPedido) ? "✅ Pago actualizado." : "❌ Error al actualizar el pedido.";
         } else {
             echo "❌ Error al actualizar el pago.";
         }
@@ -211,20 +268,24 @@ switch ($opcion) {
         $pago = $resP->get_result()->fetch_assoc();
 
         if ($pago) {
-            $idPed = $pago['idPedido'];
-            $montoABorrar = $pago['monto'];
-
             $del = $conn->prepare("DELETE FROM pagos WHERE id = ?");
             $del->bind_param('i', $idPago);
             $del->execute();
 
-            $upd = $conn->prepare("UPDATE pedidos SET
-                                   montoPagado = montoPagado - ?,
-                                   estadoPago = IF(montoPagado - ? <= 0, 1, 2)
-                                   WHERE id = ?");
-            $upd->bind_param('ddi', $montoABorrar, $montoABorrar, $idPed);
-            $upd->execute();
+            recalcularPagosPedido($conn, (int)$pago['idPedido']);
             echo "✅ Pago eliminado.";
         }
         break;
+}
+
+// Foto de cierreMedios (uno o todos), indexada por idMedio.
+function estadoCierreMedios($conn, $idMedio = null) {
+    $sql = "SELECT idMedio, fechaUC, montoUC, diferenciaUC FROM cierreMedios";
+    if ($idMedio !== null) $sql .= " WHERE idMedio = " . (int)$idMedio;
+    $res = mysqli_query($conn, $sql);
+    $estado = [];
+    while ($f = mysqli_fetch_assoc($res)) {
+        $estado[$f['idMedio']] = $f;
+    }
+    return $estado;
 }

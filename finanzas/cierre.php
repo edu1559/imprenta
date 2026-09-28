@@ -242,18 +242,24 @@ $('.btnCerrarParcial').click(function() {
 $('.btnBorrarCierre').click(function() {
     let idCierre = $(this).data('id');
 
-    if(confirm('¿Estás seguro de eliminar este registro de cierre? Esta acción no se puede deshacer de forma automática.')) {
-        $.post('finanzas/ajaxCierre.php', {
-            opcion: 'eliminarCierre',
-            id: idCierre
-        }, function(res) {
-            if(res.trim() == "OK") {
-                $('#contenido').load('finanzas/cierre.php');
-            } else {
-                alert("Error: " + res);
-            }
-        });
+    let motivo = prompt('Vas a borrar este cierre: los medios que dependen de él vuelven a su cierre anterior.\n\nMotivo (obligatorio):');
+    if (motivo === null) return;
+    if (motivo.trim() === '') {
+        alert('Tenés que indicar el motivo.');
+        return;
     }
+
+    $.post('finanzas/ajaxCierre.php', {
+        opcion: 'eliminarCierre',
+        id: idCierre,
+        motivo: motivo.trim()
+    }, function(res) {
+        if(res.trim() == "OK") {
+            $('#contenido').load('finanzas/cierre.php');
+        } else {
+            alert("Error: " + res);
+        }
+    });
 });
 
 $('#btnCerrarTodos').click(function() {

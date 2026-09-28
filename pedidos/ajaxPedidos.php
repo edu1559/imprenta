@@ -1,6 +1,7 @@
 <?php
 session_start();
 include_once('../conexion.php');
+include_once('../auditoria.php');
 $conn = conectar();
 
 // Usamos $_POST en lugar de $_GET
@@ -105,25 +106,21 @@ switch ($opcion){
     $prometido          = $_POST['prometido'];
     $idEstadoEntrega    = $_POST['idEstadoEntrega'];
     $idEstadoProduccion = $_POST['idEstadoProduccion'];
-    $idEstadoPago       = $_POST['idEstadoPago'];
-    $montoPagado        = $_POST['montoPagado'];
-    $monto              = $_POST['monto'];
-    $montoPagadoOriginal= $_POST['montoPagadoOriginal'];
+    $monto              = (float)$_POST['monto'];
     $idMedioPago        = $_POST['idMedioPago'];
 
-    // Lógica para registrar un nuevo pago si el montoPagado aumentó
-    // Nota: Para que esto funcione exacto, deberías enviar 'montoPagadoOriginal' desde el JS
-  
-        $diferencia = $montoPagado - $montoPagadoOriginal;
-
-        if ($diferencia > 0.01) {
-            // Nota: la tabla 'pagos' no tiene columna idContacto (bug detectado: la insert fallaba
-            // en silencio y el pago aumentado nunca quedaba en el historial de pagos).
-            $sqlPago = "INSERT INTO pagos (fecha, idPedido, idUsuario, monto, idMedioPago)
-                        VALUES (NOW(), $idPedido, $idUsuario, '$diferencia', $idMedioPago)";
-            mysqli_query($conn, $sqlPago);
-        }
-  
+    // El monto pagado ya no se edita acá: solo cambia con pagos (cargar,
+    // borrar o ajustar). El estado de pago se deduce de lo pagado.
+    $stmt = $conn->prepare("SELECT monto, montoPagado FROM pedidos WHERE id = ?");
+    $idPedidoInt = (int)$idPedido;
+    $stmt->bind_param('i', $idPedidoInt);
+    $stmt->execute();
+    $actual = $stmt->get_result()->fetch_assoc();
+    if (!$actual) {
+        echo "❌ No se encontró el pedido.";
+        break;
+    }
+    $idEstadoPago = calcularEstadoPago($monto, (float)$actual['montoPagado']);
 
     // Actualización del pedido
     $sql = "UPDATE pedidos SET 
@@ -135,7 +132,6 @@ switch ($opcion){
                 estadoEntrega = $idEstadoEntrega,
                 estadoProduccion = $idEstadoProduccion,
                 estadoPago = $idEstadoPago,
-                montoPagado = '$montoPagado',
                 monto = '$monto',
                 idMedioPago = $idMedioPago
             WHERE id = $idPedido";
@@ -143,6 +139,9 @@ switch ($opcion){
     $result = mysqli_query($conn, $sql);
 
     if ($result) {
+        if (abs((float)$actual['monto'] - $monto) > 0.01) {
+            registrarModificacion($conn, 'pedido', $idPedidoInt, $idPedidoInt, 'modificarMonto', $actual['monto'], $monto, 'Editar pedido');
+        }
         echo "✅ Pedido #$idPedido actualizado correctamente.";
     } else {
         echo "❌ Error al actualizar: " . mysqli_error($conn);

@@ -104,6 +104,7 @@
                     <th>usuario</th>
                     <th>clave</th>
                     <th>perfil</th>
+                    <th title="Puede borrar o modificar pagos y anular pedidos (los administradores siempre pueden)">modifica pagos</th>
                     <th>borrar</th>
                     <th>editar</th>
                     
@@ -114,7 +115,7 @@
             //include_once ('conexion.php');
  
 
-            $sql = "select u.id,concat(c.apellido,' ',c.nombre), u.usuario, u.clave, p.perfil,c.id
+            $sql = "select u.id,concat(c.apellido,' ',c.nombre), u.usuario, u.clave, p.perfil,c.id, u.idPerfil, u.puedeModificar
                     from contactos c inner join usuarios u 
                         on u.id = c.id
                     inner join perfiles p 
@@ -131,6 +132,10 @@
            
             
             while($myrow = mysqli_fetch_row($result)){
+                        // Los administradores siempre pueden: la casilla queda tildada y fija.
+                        $esAdmin = ($myrow[6] == 1);
+                        $chkModifica = ($esAdmin || $myrow[7] == 1) ? 'checked' : '';
+                        $disModifica = $esAdmin ? 'disabled' : '';
                         echo "<tr>
                                 <td>". $myrow[0]. "</td>
                                 <td>". $myrow[1]. "</td>
@@ -138,6 +143,7 @@
                                 <td>". $myrow[3]. "</td>
                                 <td>". $myrow[4]. "</td>
                                 <td style=\"display:none\">". $myrow[5]. "</td>
+                                <td class=\"text-center\"><input type=\"checkbox\" class=\"form-check-input chkPuedeModificar\" data-id=\"". $myrow[0]. "\" $chkModifica $disModifica></td>
                                 <td><span class=\"fa fa-trash btnBorrarUsuario\" style=\"cursor:pointer;font-size:25px\"></td>
                                 <td><span class=\"fa fa-pencil btnEditarUsuario\" style=\"cursor:pointer;font-size:25px\"></td>
                             </tr>";
@@ -166,6 +172,7 @@
                     </select>
                 </td>
                 
+                <td></td>
                 <td><i class="bi bi-plus-square btnAgregarUsuario  fs-4" style="cursor:pointer"></i></td>
             </tr>           
 
@@ -179,6 +186,21 @@
 
 
 <script>
+
+ /* permiso para borrar/modificar pagos y anular pedidos */
+   $('table').on('change', '.chkPuedeModificar', function() {
+    var $chk = $(this);
+    $.post('administracion/ajaxUsuarios.php', {
+        opcion: 'permisoModificar',
+        id: $chk.data('id'),
+        valor: $chk.is(':checked') ? 1 : 0
+    }, function(res) {
+        if (res.trim() !== 'OK') {
+            alert(res);
+            $chk.prop('checked', !$chk.is(':checked'));
+        }
+    });
+   });
 
  /* buscar */       
    $('#buscar').keyup(function() {

@@ -132,7 +132,7 @@ $colorFondo = '#ffffff';
                             $chk = ($reg['estadoPago'] == $v) ? 'checked' : '';
                         ?>
                         <div class="form-check">
-                            <input type="radio" id="pago_<?php echo $v; ?>" name="estadoPago" value="<?php echo $v; ?>" class="form-check-input" <?php echo $chk; ?>>
+                            <input type="radio" id="pago_<?php echo $v; ?>" name="estadoPago" value="<?php echo $v; ?>" class="form-check-input" <?php echo $chk; ?> disabled>
                             <label for="pago_<?php echo $v; ?>" class="form-check-label small"><?php echo $l; ?></label>
                         </div>
                         <?php endforeach; ?>
@@ -147,7 +147,7 @@ $colorFondo = '#ffffff';
             </div>
             <div class="col-md-3">
                 <label class="small">Pagado $:</label>
-                <input type="number" class="form-control form-control-sm fw-bold text-success" id="editMontoPagado" value="<?php echo $reg['montoPagado']; ?>">
+                <input type="number" class="form-control form-control-sm fw-bold text-success" id="editMontoPagado" value="<?php echo $reg['montoPagado']; ?>" readonly title="Se modifica cargando pagos">
             </div>
             <div class="col-md-3">
                 <label class="small">Prometido:</label>
@@ -225,11 +225,8 @@ $('#btnActualizarPedido').on('click', function() {
         observaciones: $('#editObservaciones').val(),
         prometido: $('#editPrometido').val(),
         monto: $('#editMonto').val(),
-        montoPagado: $('#editMontoPagado').val(),
-        montoPagadoOriginal: $('#montoPagadoOriginal').val(),
         idEstadoEntrega: $('input[name="estadoEntrega"]:checked').val(),
         idEstadoProduccion: $('input[name="estadoProduccion"]:checked').val(),
-        idEstadoPago: $('input[name="estadoPago"]:checked').val(),
         idMedioPago: $('#editMedioPago').val(),
         idTipoPedido: $('#editIdTipoPedido').val(),
         // Origen no se edita en este formulario; lo mandamos igual que estaba
