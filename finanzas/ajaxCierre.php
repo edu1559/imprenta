@@ -13,11 +13,31 @@ switch ($opcion) {
     // Reasignar el medio de pago de un pago puntual.
     // -------------------------------------------------------------
     case 'cambiaMedio':
-        $idPago = (int)$_POST['idPago'];
+        $pago = validarModificacionPago($conn, (int)$_POST['idPago']);
+        if (!$pago) break;
         $idMedio = (int)$_POST['idMedio'];
-        $stmt = $conn->prepare("UPDATE pagos SET idMedioPago = ? WHERE id = ?");
-        $stmt->bind_param('ii', $idMedio, $idPago);
-        echo $stmt->execute() ? "OK" : "Error";
+        if ($idMedio === (int)$pago['idMedioPago']) {
+            echo "OK";
+            break;
+        }
+        if (fechaEnCajaCerrada($conn, $pago['fecha'], $idMedio)) {
+            echo "No se puede mover: la caja de destino ya se cerró después de la fecha de este pago.";
+            break;
+        }
+
+        mysqli_begin_transaction($conn);
+        try {
+            $stmt = $conn->prepare("UPDATE pagos SET idMedioPago = ? WHERE id = ?");
+            $stmt->bind_param('ii', $idMedio, $pago['id']);
+            $stmt->execute();
+            registrarModificacion($conn, 'pago', $pago['id'], $pago['idPedido'], 'cambiarMedio',
+                                  $pago['medio'], nombreMedio($conn, $idMedio), $_POST['motivo']);
+            mysqli_commit($conn);
+            echo "OK";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "Error: " . $e->getMessage();
+        }
         break;
 
     // -------------------------------------------------------------
@@ -233,47 +253,103 @@ switch ($opcion) {
         break;
 
     case 'actualizarPago':
-        $idPago      = (int)$_POST['id'];
-        $nuevoMonto  = (float)$_POST['monto'];
+        $pago = validarModificacionPago($conn, (int)$_POST['id']);
+        if (!$pago) break;
+        $nuevoMonto  = round((float)$_POST['monto'], 2);
         $idMedioPago = (int)$_POST['idMedioPago'];
+        $cambiaMonto = abs($nuevoMonto - (float)$pago['monto']) > 0.001;
+        $cambiaMedio = $idMedioPago !== (int)$pago['idMedioPago'];
 
-        $sqlAnterior = $conn->prepare("SELECT idPedido, monto FROM pagos WHERE id = ?");
-        $sqlAnterior->bind_param('i', $idPago);
-        $sqlAnterior->execute();
-        $pagoAnterior = $sqlAnterior->get_result()->fetch_assoc();
-
-        if (!$pagoAnterior) {
-            echo "❌ No se encontró el pago.";
+        if (!$cambiaMonto && !$cambiaMedio) {
+            echo "No hay cambios para guardar.";
+            break;
+        }
+        if ($cambiaMedio && fechaEnCajaCerrada($conn, $pago['fecha'], $idMedioPago)) {
+            echo "❌ No se puede pasar a ese medio: su caja ya se cerró después de la fecha de este pago.";
             break;
         }
 
-        $idPedido = (int)$pagoAnterior['idPedido'];
+        mysqli_begin_transaction($conn);
+        try {
+            $stmt = $conn->prepare("UPDATE pagos SET monto = ?, idMedioPago = ? WHERE id = ?");
+            $stmt->bind_param('dii', $nuevoMonto, $idMedioPago, $pago['id']);
+            $stmt->execute();
+            recalcularPagosPedido($conn, (int)$pago['idPedido']);
 
-        $sqlUpdPago = $conn->prepare("UPDATE pagos SET monto = ?, idMedioPago = ? WHERE id = ?");
-        $sqlUpdPago->bind_param('dii', $nuevoMonto, $idMedioPago, $idPago);
-
-        if ($sqlUpdPago->execute()) {
-            echo recalcularPagosPedido($conn, $idPedido) ? "✅ Pago actualizado." : "❌ Error al actualizar el pedido.";
-        } else {
-            echo "❌ Error al actualizar el pago.";
+            if ($cambiaMonto) {
+                registrarModificacion($conn, 'pago', $pago['id'], $pago['idPedido'], 'modificarMonto',
+                                      $pago['monto'], $nuevoMonto, $_POST['motivo']);
+            }
+            if ($cambiaMedio) {
+                registrarModificacion($conn, 'pago', $pago['id'], $pago['idPedido'], 'cambiarMedio',
+                                      $pago['medio'], nombreMedio($conn, $idMedioPago), $_POST['motivo']);
+            }
+            mysqli_commit($conn);
+            echo "✅ Pago actualizado.";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "❌ Error al actualizar el pago: " . $e->getMessage();
         }
         break;
 
     case 'borrarPago':
-        $idPago = (int)$_POST['id'];
+        $pago = validarModificacionPago($conn, (int)$_POST['id']);
+        if (!$pago) break;
 
-        $resP = $conn->prepare("SELECT idPedido, monto FROM pagos WHERE id = ?");
-        $resP->bind_param('i', $idPago);
-        $resP->execute();
-        $pago = $resP->get_result()->fetch_assoc();
-
-        if ($pago) {
+        mysqli_begin_transaction($conn);
+        try {
             $del = $conn->prepare("DELETE FROM pagos WHERE id = ?");
-            $del->bind_param('i', $idPago);
+            $del->bind_param('i', $pago['id']);
             $del->execute();
-
             recalcularPagosPedido($conn, (int)$pago['idPedido']);
+            registrarModificacion($conn, 'pago', $pago['id'], $pago['idPedido'], 'borrar',
+                                  describirPago($pago), null, $_POST['motivo']);
+            mysqli_commit($conn);
             echo "✅ Pago eliminado.";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "❌ Error al borrar el pago: " . $e->getMessage();
+        }
+        break;
+
+    // -------------------------------------------------------------
+    // Pago de ajuste: corrige un pago que ya no se puede tocar (caja o
+    // pedido cerrados). Es un pago nuevo, de hoy, que puede ser negativo,
+    // y entra en la caja del día.
+    // -------------------------------------------------------------
+    case 'ajustePago':
+        $idPedido    = (int)$_POST['idPedido'];
+        $monto       = round((float)$_POST['monto'], 2);
+        $idMedioPago = (int)$_POST['idMedioPago'];
+        $motivo      = trim($_POST['motivo'] ?? '');
+
+        if (!puedeModificar($conn)) {
+            echo "No tenés permiso para cargar ajustes. Tiene que ser un administrador o un usuario habilitado, logueado.";
+            break;
+        }
+        if ($motivo === '') {
+            echo "Falta el motivo.";
+            break;
+        }
+        if (abs($monto) < 0.01) {
+            echo "El monto del ajuste no puede ser cero.";
+            break;
+        }
+
+        mysqli_begin_transaction($conn);
+        try {
+            $stmt = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
+            $stmt->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
+            $stmt->execute();
+            $idAjuste = $conn->insert_id;
+            recalcularPagosPedido($conn, $idPedido);
+            registrarModificacion($conn, 'pago', $idAjuste, $idPedido, 'ajuste',
+                                  null, $monto . ' en ' . nombreMedio($conn, $idMedioPago), $motivo);
+            mysqli_commit($conn);
+            echo "✅ Ajuste registrado.";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "❌ Error al registrar el ajuste: " . $e->getMessage();
         }
         break;
 }
@@ -288,4 +364,37 @@ function estadoCierreMedios($conn, $idMedio = null) {
         $estado[$f['idMedio']] = $f;
     }
     return $estado;
+}
+
+// Controles comunes antes de borrar, modificar o mover un pago: usuario con
+// permiso, motivo, y que ni el pedido ni la caja del pago estén cerrados.
+// Devuelve el pago, o null después de mostrar el error.
+function validarModificacionPago($conn, $idPago) {
+    if (!puedeModificar($conn)) {
+        echo "No tenés permiso para modificar pagos. Tiene que ser un administrador o un usuario habilitado, logueado.";
+        return null;
+    }
+    $_POST['motivo'] = trim($_POST['motivo'] ?? '');
+    if ($_POST['motivo'] === '') {
+        echo "Falta el motivo.";
+        return null;
+    }
+    $pago = cargarPago($conn, $idPago);
+    if (!$pago) {
+        echo "No se encontró el pago.";
+        return null;
+    }
+    $bloqueo = bloqueoPago($pago);
+    if ($bloqueo) {
+        echo $bloqueo;
+        return null;
+    }
+    return $pago;
+}
+
+function nombreMedio($conn, $idMedio) {
+    $stmt = $conn->prepare("SELECT medio FROM mediosPago WHERE id = ?");
+    $stmt->bind_param('i', $idMedio);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_assoc()['medio'] ?? (string)$idMedio;
 }

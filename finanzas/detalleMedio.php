@@ -1,6 +1,9 @@
 <?php
+session_start();
 include_once('../conexion.php');
+include_once('../auditoria.php');
 $conn = conectar();
+$puedeModificar = puedeModificar($conn);
 
 $idMedio = $_GET['idMedio'] ?? die("Falta ID");
 
@@ -17,6 +20,7 @@ $sql = "SELECT
             c.apellido,
             pe.detalle,
             pe.idTipoPedido, -- Agregado para lógica de colores y resta
+            pe.estadoProduccion, pe.estadoEntrega, pe.estadoPago,
             u.usuario
         FROM pagos p
         INNER JOIN pedidos pe ON p.idPedido = pe.id
@@ -60,6 +64,16 @@ $result = mysqli_query($conn, $sql);
                         $simbolo = '+';
                         $colorMonto = 'text-success';
                     }
+
+                    // Acá todos los pagos son de caja abierta (posteriores al
+                    // último cierre); solo falta ver si el pedido está cerrado.
+                    if (!$puedeModificar) {
+                        $bloqueo = 'No tenés permiso para modificar pagos.';
+                    } elseif (pedidoCerrado($f)) {
+                        $bloqueo = 'El pedido está cerrado. Usá un pago de ajuste desde Pagos del pedido.';
+                    } else {
+                        $bloqueo = null;
+                    }
             ?>
             <tr class="<?php echo $claseFila; ?>">
                 <td class="text-muted small"><?php echo $f['hora']; ?></td>
@@ -75,7 +89,7 @@ $result = mysqli_query($conn, $sql);
                     <?php echo $simbolo; ?>$<?php echo number_format($f['monto'], 0, ',', '.'); ?>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm selMedioRapido" style="font-size: 0.7rem; padding: 0.1rem 0.3rem;">
+                    <select class="form-select form-select-sm selMedioRapido" style="font-size: 0.7rem; padding: 0.1rem 0.3rem;" data-original="<?php echo $idMedio; ?>" <?php echo $bloqueo ? 'disabled title="' . htmlspecialchars($bloqueo) . '"' : ''; ?>>
                         <?php foreach($listaMedios as $m): ?>
                             <option value="<?php echo $m['id']; ?>" <?php echo ($m['id'] == $idMedio) ? 'selected' : ''; ?>>
                                 <?php echo $m['medio']; ?>
@@ -84,6 +98,9 @@ $result = mysqli_query($conn, $sql);
                     </select>
                 </td>
                 <td class="text-end">
+                    <?php if ($bloqueo): ?>
+                    <i class="bi bi-lock text-muted" title="<?php echo htmlspecialchars($bloqueo); ?>"></i>
+                    <?php else: ?>
                     <div class="btn-group">
                         <button class="btn btn-outline-primary btn-sm btnEditarPagoDetalle" data-id="<?php echo $f['idPago']; ?>">
                             <i class="bi bi-pencil"></i>
@@ -92,6 +109,7 @@ $result = mysqli_query($conn, $sql);
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php endwhile; ?>
@@ -116,23 +134,44 @@ $result = mysqli_query($conn, $sql);
 
 <script>
 $('.selMedioRapido').change(function() {
-    let idPago = $(this).closest('tr').find('.idPago').text();
-    let idNuevoMedio = $(this).val();
-    let fila = $(this).closest('tr');
+    let $sel = $(this);
+    let idPago = $sel.closest('tr').find('.idPago').text();
+    let fila = $sel.closest('tr');
 
-    if(confirm('¿Seguro que quieres mover este pago?')) {
-        $.post('finanzas/ajaxCierre.php', {
-            opcion: 'cambiaMedio',
-            idPago: idPago,
-            idMedio: idNuevoMedio
-        }, function() {
-            fila.fadeOut(300, function() {
-                // Actualizamos el tablero general para que los saldos coincidan
-                $('#contenido').load('finanzas/cierre.php');
-            });
-        });
+    let motivo = pedirMotivo('Vas a mover el pago #' + idPago + ' a ' + $sel.find('option:selected').text().trim() + '.');
+    if (motivo === null) {
+        $sel.val($sel.data('original'));
+        return;
     }
+
+    $.post('finanzas/ajaxCierre.php', {
+        opcion: 'cambiaMedio',
+        idPago: idPago,
+        idMedio: $sel.val(),
+        motivo: motivo
+    }, function(r) {
+        if (r.trim() !== 'OK') {
+            alert(r);
+            $sel.val($sel.data('original'));
+            return;
+        }
+        fila.fadeOut(300, function() {
+            // Actualizamos el tablero general para que los saldos coincidan
+            $('#contenido').load('finanzas/cierre.php');
+        });
+    });
 });
+
+// Pide el motivo (obligatorio). Devuelve null si se cancela.
+function pedirMotivo(mensaje) {
+    let motivo = prompt(mensaje + '\n\nMotivo (obligatorio):');
+    if (motivo === null) return null;
+    if (motivo.trim() === '') {
+        alert('Tenés que indicar el motivo.');
+        return null;
+    }
+    return motivo.trim();
+}
 
 // Editar un pago puntual desde el detalle del medio
 $('.btnEditarPagoDetalle').click(function() {
@@ -153,11 +192,11 @@ $('.btnEditarPagoDetalle').click(function() {
 // Borrar un pago puntual desde el detalle del medio
 $('.btnBorrarPagoDetalle').click(function() {
     let idPago = $(this).data('id');
-    if (confirm("¿Seguro que deseas ELIMINAR el pago #" + idPago + "?")) {
-        $.post('finanzas/ajaxCierre.php', { opcion: 'borrarPago', id: idPago }, function(r) {
-            alert(r);
-            $('#contenido').load('finanzas/cierre.php');
-        });
-    }
+    let motivo = pedirMotivo('Vas a ELIMINAR el pago #' + idPago + '.');
+    if (motivo === null) return;
+    $.post('finanzas/ajaxCierre.php', { opcion: 'borrarPago', id: idPago, motivo: motivo }, function(r) {
+        alert(r);
+        $('#contenido').load('finanzas/cierre.php');
+    });
 });
 </script>

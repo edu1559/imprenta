@@ -88,3 +88,43 @@ function recalcularPagosPedido($conn, $idPedido) {
     $upd->bind_param('dii', $pagado, $estado, $idPedido);
     return $upd->execute();
 }
+
+// Una fecha cae en caja cerrada si es anterior al último cierre de ese medio.
+function fechaEnCajaCerrada($conn, $fecha, $idMedio) {
+    $stmt = $conn->prepare("SELECT ? < fechaUC AS cerrado FROM cierreMedios WHERE idMedio = ?");
+    $stmt->bind_param('si', $fecha, $idMedio);
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    return $fila && (int)$fila['cerrado'] === 1;
+}
+
+// Pago con los datos de su pedido y de su caja, para decidir si se puede tocar.
+function cargarPago($conn, $idPago) {
+    $stmt = $conn->prepare("SELECT pg.id, pg.fecha, pg.monto, pg.idMedioPago, pg.idPedido,
+                                   mp.medio,
+                                   p.estadoProduccion, p.estadoEntrega, p.estadoPago
+                            FROM pagos pg
+                            INNER JOIN pedidos p ON p.id = pg.idPedido
+                            LEFT JOIN mediosPago mp ON mp.id = pg.idMedioPago
+                            WHERE pg.id = ?");
+    $stmt->bind_param('i', $idPago);
+    $stmt->execute();
+    $pago = $stmt->get_result()->fetch_assoc();
+    if ($pago) {
+        $pago['cajaCerrada'] = fechaEnCajaCerrada($conn, $pago['fecha'], (int)$pago['idMedioPago']);
+    }
+    return $pago;
+}
+
+// Motivo por el que un pago no se puede borrar ni modificar (null si se puede).
+// En esos casos, la corrección se hace con un pago de ajuste.
+function bloqueoPago($pago) {
+    if (pedidoCerrado($pago)) return "El pedido está cerrado (terminado, entregado y pagado). Usá un pago de ajuste.";
+    if ($pago['cajaCerrada'])  return "El pago ya está en una caja cerrada. Usá un pago de ajuste.";
+    return null;
+}
+
+function describirPago($pago) {
+    return '$' . number_format((float)$pago['monto'], 2, ',', '.') . ' en ' . ($pago['medio'] ?? $pago['idMedioPago'])
+         . ' del ' . date('d/m/Y H:i', strtotime($pago['fecha']));
+}

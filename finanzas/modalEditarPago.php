@@ -1,7 +1,9 @@
 <?php
 include_once('../conexion.php');
 $conn = conectar();
-$idPago = $_GET['idPago'];
+$idPago = (int)$_GET['idPago'];
+// Pantalla a recargar después de guardar: Cierre (por defecto) o Pedidos.
+$volver = (($_GET['volver'] ?? '') === 'pedidos') ? 'pedidos/pedidos.php' : 'finanzas/cierre.php';
 
 $sql = "SELECT p.*, concat(c.apellido, ' ', c.nombre) as contacto 
         FROM pagos p 
@@ -38,6 +40,10 @@ $medios = mysqli_query($conn, "SELECT * FROM mediosPago");
                 <?php endwhile; ?>
             </select>
         </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Motivo del cambio:</label>
+            <textarea class="form-control" id="editMotivoPago" rows="2" maxlength="255" placeholder="Obligatorio: queda registrado"></textarea>
+        </div>
     </form>
 </div>
 <div class="modal-footer">
@@ -52,13 +58,20 @@ $('#btnGuardarCambioPago').on('click', function() {
         opcion: 'actualizarPago',
         id: $('#editIdPago').val(),
         monto: $('#editMontoPago').val(),
-        idMedioPago: $('#editMedioPago').val()
+        idMedioPago: $('#editMedioPago').val(),
+        motivo: $('#editMotivoPago').val().trim()
     };
+    if (datos.motivo === '') {
+        alert('Tenés que indicar el motivo.');
+        return;
+    }
     
     $.post('finanzas/ajaxCierre.php', datos, function(r) {
         alert(r);
+        // Si no se guardó (sin permiso, caja cerrada, etc.) dejamos el modal abierto.
+        if (r.trim().indexOf('✅') !== 0) return;
         $('#modalUniversal').modal('hide');
-        $('#contenido').load('finanzas/cierre.php');
+        $('#contenido').load('<?php echo $volver; ?>');
     });
 });
 </script>

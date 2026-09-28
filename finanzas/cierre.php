@@ -204,21 +204,6 @@ $('.btnVer').click(function() {
     $('#cuerpoDetalleMovimientos').load('finanzas/detalleMedio.php?idMedio=' + idM);
 });
 
-// Al cambiar el medio en la tabla de detalles
-$(document).on('change', '.selMedio', function() {
-    let idPago = $(this).closest('tr').find('.idPago').text();
-    let idNuevoMedio = $(this).val();
-
-    $.post('finanzas/ajaxCierre.php', {
-        opcion: 'cambiaMedio',
-        idPago: idPago,
-        idMedio: idNuevoMedio
-    }, function() {
-        // Recargar el tablero completo para actualizar los saldos calculados
-        $('#contenido').load('finanzas/cierre.php');
-    });
-});
-
 $('.btnCerrarParcial').click(function() {
     let $row = $(this).closest('tr');
     let v_idMedio = $(this).data('id');
