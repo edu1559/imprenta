@@ -201,6 +201,15 @@ $(document).ready(function() {
                 return { q: params.term };
             },
             processResults: function (data) {
+                // Encabezado no seleccionable con la cantidad de coincidencias
+                if (data.length && data[0].id !== 'NEW') {
+                    var total = data[0].total || data.length;
+                    var texto = total + (total === 1 ? ' coincidencia' : ' coincidencias');
+                    if (total > data.length) {
+                        texto += ' — mostrando ' + data.length + '. Agregue el nombre para afinar (ej: "romero pam")';
+                    }
+                    data.unshift({ id: 'INFO', text: texto, disabled: true });
+                }
                 return { results: data };
             },
             cache: true
@@ -212,6 +221,9 @@ $(document).ready(function() {
 
     function formatearResultadoCliente(c) {
         if (!c.id) { return c.text; } // "Buscando..." / placeholder de Select2
+        if (c.id === 'INFO') {
+            return '<div class="small fw-bold text-primary px-1"><i class="bi bi-info-circle"></i> ' + escapeHtml(c.text) + '</div>';
+        }
         if (c.id === 'NEW') {
             return '<div class="d-flex align-items-center gap-2 text-warning-emphasis fw-bold px-1 py-1">' +
                    '<i class="bi bi-plus-circle-fill"></i> ' + escapeHtml(c.text) + '</div>';

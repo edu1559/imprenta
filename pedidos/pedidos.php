@@ -39,16 +39,6 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
                     </button>
         </div>
 
-         <div class="col-md-1 d-flex justify-content-end">
-                    <button class='btn btn-danger'
-                            id='btnContactoNuevo'
-                            title='Nuevo Contacto'
-                            data-bs-toggle='modal'
-                            data-bs-target='#modalUniversal'>
-                        <i class="bi bi-person"></i> Nuevo Contacto
-                    </button>
-        </div>
-
 
  <!-- botones de búsqueda  -->
   
@@ -325,16 +315,7 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
 		 </div>
 	
 	</div>
-		 <!--
-       <div class="modal fade" id="modalUniversal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-            </div>     
-        </div>
-       </div>
-   
-        -->
+		 
        
 <script>
 
@@ -347,14 +328,6 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
     $('#btnPedidoNuevo').on('click', function(){
         v_url = 'pedidos/modalPedidoNuevo.php';
        // alert(v_url);
-        $('#modalUniversal .modal-content').load(v_url, function(){
-            $('#modalUniversal').modal('show');
-        });
-    });
-
-    $('#btnContactoNuevo').on('click', function(){
-        v_url = 'contactos/modalContactoNuevo.php?id=null';
-        // alert(v_url);
         $('#modalUniversal .modal-content').load(v_url, function(){
             $('#modalUniversal').modal('show');
         });
