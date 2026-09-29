@@ -94,13 +94,14 @@ while ($f = mysqli_fetch_assoc($resFechas)) {
                     </tr>
                 </tfoot>
             </table>
-            
+           
             <button type="button" class="btn btn-primary w-100 shadow-sm mt-2" id="btnGuardarYPasar">
                 <i class="bi bi-save me-2"></i>Guardar Arqueo y Actualizar Cierre
             </button>
         </form>
     </div>
 </div>
+ <!--
 <div class="col-md-10 border-end bg-white">
     <h6 class="text-muted fw-bold small p-2 border-bottom">
         <i class="bi bi-clock-history"></i> COMPARATIVA DE ARQUEOS
@@ -136,6 +137,7 @@ while ($f = mysqli_fetch_assoc($resFechas)) {
         <p class="text-muted small p-3">No hay arqueos previos registrados.</p>
     <?php endif; ?>
 </div>
+    -->
 <script>
 $(document).ready(function() {
     // Calculamos el total apenas carga para mostrar los valores recuperados
