@@ -5,13 +5,24 @@ $conn = conectar();
 // Usamos REQUEST para capturar tanto GET como POST sin conflictos
 $opcion = isset($_REQUEST['opcion']) ? $_REQUEST['opcion'] : '';
 
-// --- 1. BUSCADOR (Se mantiene igual, funciona perfecto) ---
+// --- 1. BUSCADOR ---
+// Cada palabra tiene que aparecer en "apellido nombre" (así "Vargas Julieta" encuentra
+// apellido=Vargas, nombre=Julieta); un número busca también por id de contacto.
 if ($opcion == 'buscarContactosSinUsuario') {
-    $cadena = mysqli_real_escape_string($conn, $_REQUEST['cadena']);
+    $condiciones = [];
+    foreach (preg_split('/\s+/', trim($_REQUEST['cadena'])) as $palabra) {
+        if ($palabra === '') continue;
+        $p = mysqli_real_escape_string($conn, $palabra);
+        $condiciones[] = ctype_digit($palabra)
+            ? "(c.id = $p OR CONCAT_WS(' ', c.apellido, c.nombre) LIKE '%$p%')"
+            : "CONCAT_WS(' ', c.apellido, c.nombre) LIKE '%$p%'";
+    }
+    $filtro = $condiciones ? implode(' AND ', $condiciones) : '1';
     $sql = "SELECT c.id, c.apellido, c.nombre
             FROM contactos c
-            WHERE (c.apellido LIKE '%$cadena%' OR c.nombre LIKE '%$cadena%')
+            WHERE $filtro
             AND c.id NOT IN (SELECT u.id FROM usuarios u)
+            ORDER BY c.apellido, c.nombre, c.id
             LIMIT 20";
     $res = mysqli_query($conn, $sql);
 
