@@ -121,7 +121,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                             <tr>
                                 <th>Fecha / Hora</th>
                                 <th class="text-end">Efectivo</th>
-                                <th class="text-end">Transf.</th>
+                                <th class="text-end">BcoMacro</th>
                                 <th class="text-end">M. Pago</th>
                                 <th class="text-end fw-bold">Total</th>
                                 <th class="text-center">Dif.</th>
@@ -141,7 +141,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                     <small class="text-muted"><?php echo date('H:i', strtotime($h['fecha'])); ?> hs</small>
                                 </td>
                                 <td class="text-end">$<?php echo number_format($h['efectivo'], 2); ?></td>
-                                <td class="text-end">$<?php echo number_format($h['transferencia'], 2); ?></td>
+                                <td class="text-end">$<?php echo number_format($h['BcoMacro'], 2); ?></td>
                                 <td class="text-end">$<?php echo number_format($h['mercadoPago'], 2); ?></td>
                                 <td class="text-end fw-bold">$<?php echo number_format($h['suma'], 2); ?></td>
                                 <td class="text-center <?php echo $claseDif; ?> fw-bold">$<?php echo number_format($h['diferencia'], 2); ?></td>

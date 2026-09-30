@@ -70,10 +70,9 @@ switch ($opcion) {
         $medios = json_decode($_POST['medios'], true);
         $totalDif = (float)$_POST['totalDiferencia'];
 
-        // Columnas reales de la tabla histórica 'cierre' (además de
-        // 'credito', que existe como columna pero queda fuera de la
-        // suma generada por diseño y no se carga acá).
-        $columnasCierre = ['efectivo', 'transferencia', 'mercadoPago', 'cheques', 'dolares', 'brubank', 'naranjaX'];
+        // Columnas de la tabla histórica 'cierre': se llaman igual que el
+        // medio en cierreMedios.
+        $columnasCierre = ['efectivo', 'BcoMacro', 'mercadoPago', 'cheques', 'invMacro', 'dolares', 'brubank', 'naranjaX'];
 
         // Una sola fecha para el historial y para cada medio: así, al borrar
         // el cierre, se sabe qué medios siguen apuntando a él.
@@ -100,9 +99,12 @@ switch ($opcion) {
                 $stmtNombre->execute();
                 $nombreMedio = $stmtNombre->get_result()->fetch_assoc()['medio'] ?? null;
 
-                if ($nombreMedio !== null && array_key_exists($nombreMedio, $valoresCierre)) {
-                    $valoresCierre[$nombreMedio] = $real;
+                // Un medio sin columna en 'cierre' perdería su monto en el
+                // historial: mejor cortar el cierre y avisar.
+                if (!array_key_exists($nombreMedio ?? '', $valoresCierre)) {
+                    throw new Exception("el medio '" . ($nombreMedio ?? $id) . "' no tiene columna en el historial de cierres.");
                 }
+                $valoresCierre[$nombreMedio] = $real;
             }
 
             // 'suma' es columna GENERADA (STORED) en la tabla 'cierre': no se
