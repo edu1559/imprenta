@@ -16,28 +16,8 @@
 // pedidos se reasignan al que queda. Se puede correr todas las veces que haga
 // falta: si después se importan pedidos que apuntan a un contacto ya fusionado,
 // la próxima corrida los reasigna.
-if (php_sapi_name() !== 'cli') { http_response_code(403); exit; }
-
-include __DIR__ . '/../../conexion.php';
-$conn = conectar();
-$conn->set_charset('utf8mb4');
-$aplicar = in_array('--aplicar', $argv, true);
+require __DIR__ . '/comun.php';
 $mismoNombre = in_array('--mismoNombre', $argv, true);
-
-function norm($s) {
-    $s = strtolower(strtr(trim((string)$s), ['Á'=>'á','É'=>'é','Í'=>'í','Ó'=>'ó','Ú'=>'ú','Ü'=>'ü','Ñ'=>'ñ']));
-    $s = strtr($s, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n~']);
-    $s = preg_replace('/[^a-z0-9~ ]+/', ' ', $s);
-    return trim(preg_replace('/\s+/', ' ', $s));
-}
-function digitos($s) { return preg_replace('/\D/', '', (string)$s); }
-function vacio($s) { return trim((string)$s) === ''; }
-
-// Contactos genéricos ("AA Fotocopias y Libreria", "AA DEVOLUCIÓN", Visitante):
-// agrupan pedidos de clientes sin identificar, no se fusionan nunca.
-function esGenerico($c) {
-    return $c['id'] == 1 || preg_match('/^aa( |$)/', norm($c['apellido']));
-}
 
 // --- tabla de fusiones y reasignación de lo que haya quedado apuntando a un fusionado
 if ($aplicar) {
@@ -46,6 +26,7 @@ if ($aplicar) {
         $conn->query("ALTER TABLE contactosFusionados
             ADD COLUMN idNuevo INT NOT NULL, ADD COLUMN fechaFusion DATETIME NOT NULL, ADD KEY (idNuevo)");
     }
+    $cols = columnasContactos($conn, 'contactosFusionados');
 }
 $hayTabla = $conn->query("SHOW TABLES LIKE 'contactosFusionados'")->num_rows > 0;
 if ($hayTabla) {
@@ -160,7 +141,7 @@ foreach ($fusiones as $queda => $seVan) {
         $conn->query("UPDATE pedidos SET idContacto = $queda WHERE idContacto = $id");
         $conn->query("UPDATE papeles SET idProveedor = $queda WHERE idProveedor = $id");
         $conn->query("UPDATE contactosFusionados SET idNuevo = $queda WHERE idNuevo = $id");
-        $conn->query("REPLACE INTO contactosFusionados SELECT c.*, $queda, NOW() FROM contactos c WHERE c.id = $id");
+        $conn->query("REPLACE INTO contactosFusionados ($cols, idNuevo, fechaFusion) SELECT $cols, $queda, NOW() FROM contactos WHERE id = $id");
         $conn->query("DELETE FROM contactos WHERE id = $id");
     }
     if ($aplicar && $set) {

@@ -23,6 +23,11 @@ $conn = conectarPDO();
                 </div>
             </div>
 
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="esEmpresa1">
+                <label class="form-check-label small" for="esEmpresa1">Es una empresa o institución (el nombre es la persona de contacto)</label>
+            </div>
+
             <div class="row g-3 mb-3">
                 <div class="col-md-6">
                     <label class="form-label small fw-bold">Teléfono / WhatsApp:</label>
@@ -75,6 +80,7 @@ $conn = conectarPDO();
             opcion: 'agregarContacto',
             apellido: v_apellido,
             nombre: v_nombre,
+            esEmpresa: $('#esEmpresa1').is(':checked') ? 1 : 0,
             telefono: $('#telefono1').val(),
             correo: $('#correo1').val(),
             notas: $('#notas1').val()

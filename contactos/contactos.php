@@ -7,7 +7,7 @@ $cadena = isset($_GET['cadena']) ? mysqli_real_escape_string($conn, $_GET['caden
 $ultimos = isset($_GET['ultimos']) ? true : false;
 
 // Construcción de la SQL
-$sql = "SELECT id, apellido, nombre, telefono, correo, notas FROM contactos ";
+$sql = "SELECT id, apellido, nombre, telefono, correo, notas, esEmpresa FROM contactos ";
 
 if ($cadena) {
     $sql .= " WHERE apellido LIKE '%$cadena%' OR nombre LIKE '%$cadena%' OR telefono LIKE '%$cadena%'";
@@ -70,10 +70,11 @@ $result = mysqli_query($conn, $sql);
                         <?php
                         if (mysqli_num_rows($result) > 0) {
                             while ($row = mysqli_fetch_assoc($result)) {
+                                $iconoEmpresa = $row['esEmpresa'] ? "<i class='bi bi-building text-secondary me-1' title='Empresa o institución'></i>" : "";
                                 echo "<tr>
                                     <td class='text-muted small'>#{$row['id']}</td>
                                     <td>
-                                        <div class='fw-bold text-dark'>{$row['apellido']}, {$row['nombre']}</div>
+                                        <div class='fw-bold text-dark'>{$iconoEmpresa}{$row['apellido']}, {$row['nombre']}</div>
                                     </td>
                                     <td>
                                         <div class='small'><i class='bi bi-telephone text-muted me-1'></i> {$row['telefono']}</div>

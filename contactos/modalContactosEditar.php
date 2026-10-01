@@ -10,7 +10,7 @@ if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
 }
 
 /* Busco los datos del contacto */
-$sql = "select id, apellido, nombre, telefono, correo, tipoFactura, cuit, notas
+$sql = "select id, apellido, nombre, telefono, correo, tipoFactura, cuit, notas, esEmpresa
         from contactos
         where id = :idContacto ";
 
@@ -33,6 +33,7 @@ $correo = $myrow["correo"];
 $tipoFactura = $myrow["tipoFactura"];
 $cuit = $myrow["cuit"];
 $notas = $myrow["notas"];
+$esEmpresa = $myrow["esEmpresa"];
 
 ?>
 
@@ -53,6 +54,11 @@ $notas = $myrow["notas"];
                     <label for="nombre1" class="form-label">Nombre:</label>
                     <input type="text" class="form-control" id="nombre1" value="<?php echo htmlspecialchars($nombre); ?>">
                 </div>
+            </div>
+
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="esEmpresa1" <?php echo $esEmpresa ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="esEmpresa1">Es una empresa o institución (el nombre es la persona de contacto)</label>
             </div>
 
             <div class="row mb-3">
@@ -99,6 +105,7 @@ $notas = $myrow["notas"];
             '&id=' + v_idContacto +
             '&apellido=' + v_apellido +
             '&nombre=' + v_nombre +
+            '&esEmpresa=' + ($('#esEmpresa1').is(':checked') ? 1 : 0) +
             '&telefono=' + v_telefono +
             '&correo=' + v_correo +
             '&notas=' + v_notas;

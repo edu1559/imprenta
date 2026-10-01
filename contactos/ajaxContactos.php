@@ -48,6 +48,7 @@
                     $telefono = $_GET['telefono'];
                     $correo = $_GET['correo'];
                     $notas = urldecode($_GET['notas']);
+                    $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
 
 
 
@@ -70,8 +71,8 @@
                 break;
             }
                  
-                $sql = "insert into contactos (apellido,nombre,telefono,correo,notas)
-                        values ('$apellido','$nombre','$telefono','$correo','$notas')";
+                $sql = "insert into contactos (apellido,nombre,telefono,correo,notas,esEmpresa)
+                        values ('$apellido','$nombre','$telefono','$correo','$notas',$esEmpresa)";
 				echo $sql;
                 $result = mysqli_query($conn,$sql);
 		
@@ -109,13 +110,15 @@
                     $telefono = $_GET['telefono'];
                     $correo = $_GET['correo'];
                     $notas = urldecode($_GET['notas']);
+                    $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
                     
                 $sql = "update contactos set 
                             apellido= '$apellido',
                             nombre = '$nombre',
                             telefono = '$telefono',
                             correo = '$correo',
-                            notas = '$notas'  
+                            notas = '$notas',
+                            esEmpresa = $esEmpresa
                         where id = $id";
 		//echo $sql;        
                 $result = mysqli_query($conn,$sql);
@@ -157,4 +160,4 @@
     break;
 
     };
-};
+};

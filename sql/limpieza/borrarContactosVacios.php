@@ -8,12 +8,7 @@
 //
 // Las fichas borradas quedan completas en la tabla contactosBorrados.
 // Sin --aplicar deja el detalle en sql/limpieza/borrado_propuesto.csv.
-if (php_sapi_name() !== 'cli') { http_response_code(403); exit; }
-
-include __DIR__ . '/../../conexion.php';
-$conn = conectar();
-$conn->set_charset('utf8mb4');
-$aplicar = in_array('--aplicar', $argv, true);
+require __DIR__ . '/comun.php';
 
 $hayFusion = $conn->query("SHOW TABLES LIKE 'contactosFusionados'")->num_rows > 0;
 $vacio = fn($campo) => "TRIM(COALESCE(c.$campo, '')) = ''";
@@ -40,8 +35,9 @@ if ($aplicar) {
     if (!$conn->query("SHOW COLUMNS FROM contactosBorrados LIKE 'fechaBorrado'")->num_rows) {
         $conn->query("ALTER TABLE contactosBorrados ADD COLUMN fechaBorrado DATETIME NOT NULL");
     }
+    $cols = columnasContactos($conn, 'contactosBorrados');
     $conn->begin_transaction();
-    $conn->query("REPLACE INTO contactosBorrados SELECT c.*, NOW() FROM contactos c WHERE $donde");
+    $conn->query("REPLACE INTO contactosBorrados ($cols, fechaBorrado) SELECT $cols, NOW() FROM contactos c WHERE $donde");
     $conn->query("DELETE c FROM contactos c WHERE $donde");
     $borrados = $conn->affected_rows;
     $conn->commit();
