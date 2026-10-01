@@ -17,10 +17,11 @@ function norm($s) {
 function digitos($s) { return preg_replace('/\D/', '', (string)$s); }
 function vacio($s) { return trim((string)$s) === ''; }
 
-// Contactos genéricos ("AA Fotocopias y Libreria", "AA DEVOLUCIÓN", Visitante):
-// agrupan pedidos de clientes sin identificar, no se fusionan ni se borran nunca.
+// Contactos genéricos (Mostrador, Devoluciones, Visitante): agrupan pedidos de
+// clientes sin identificar, no se fusionan ni se borran nunca. Se reconocen por la
+// columna esGenerico y, antes de unificarGenericos.php, por el prefijo "AA".
 function esGenerico($c) {
-    return $c['id'] == 1 || preg_match('/^aa( |$)/', norm($c['apellido']));
+    return !empty($c['esGenerico']) || $c['id'] == 1 || preg_match('/^aa( |$)/', norm($c['apellido']));
 }
 
 // Columnas de contactos, para copiar filas a una tabla de respaldo. Si a la tabla

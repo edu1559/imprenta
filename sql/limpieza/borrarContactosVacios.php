@@ -1,7 +1,7 @@
 <?php
 // Borra los contactos "vacíos": sin pedidos y sin teléfono, correo, CUIT ni notas
 // (solo tienen un nombre). No toca a los que eran proveedores (tipo 2), a los
-// genéricos ("AA ...", Visitante) ni a los que recibieron una fusión.
+// genéricos (Mostrador, Devoluciones, Visitante) ni a los que recibieron una fusión.
 //
 //   php sql/limpieza/borrarContactosVacios.php             solo muestra lo que haría
 //   php sql/limpieza/borrarContactosVacios.php --aplicar   modifica la base
@@ -17,6 +17,7 @@ $donde = "NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.idContacto = c.id)
       AND {$vacio('telefono')} AND {$vacio('correo')} AND {$vacio('cuit')} AND {$vacio('notas')}
       AND COALESCE(c.tipo, 0) <> 2
       AND c.id <> 1 AND LOWER(TRIM(COALESCE(c.apellido, ''))) NOT REGEXP '^aa( |$)'"
+      . ($conn->query("SHOW COLUMNS FROM contactos LIKE 'esGenerico'")->num_rows ? " AND c.esGenerico = 0" : "")
       . ($hayFusion ? " AND NOT EXISTS (SELECT 1 FROM contactosFusionados f WHERE f.idNuevo = c.id)" : "");
 
 $r = $conn->query("SELECT c.id, c.apellido, c.nombre, c.fechacarga FROM contactos c WHERE $donde ORDER BY c.id");
