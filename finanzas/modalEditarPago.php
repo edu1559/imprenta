@@ -13,7 +13,7 @@ $sql = "SELECT p.*, concat(c.apellido, ' ', c.nombre) as contacto
 $res = mysqli_query($conn, $sql);
 $reg = mysqli_fetch_assoc($res);
 
-$medios = mysqli_query($conn, "SELECT * FROM mediosPago");
+$medios = mysqli_query($conn, "SELECT * FROM mediosPago WHERE visible = 1");
 ?>
 
 <div class="modal-header bg-success text-white">

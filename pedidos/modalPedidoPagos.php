@@ -9,7 +9,7 @@ $idPedido = (int)($_GET['idPedido'] ?? die("Error: ID no recibido"));
 $puedeModificar = puedeModificar($conn);
 
 // 1. Cargamos medios de pago
-$resMedios = mysqli_query($conn, "SELECT id, medio FROM mediosPago");
+$resMedios = mysqli_query($conn, "SELECT id, medio FROM mediosPago WHERE visible = 1");
 $medios = mysqli_fetch_all($resMedios, MYSQLI_ASSOC);
 
 

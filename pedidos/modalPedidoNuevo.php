@@ -14,7 +14,7 @@ function obtenerDiccionario($conn, $tabla, $columna) {
 
 $origen = obtenerDiccionario($conn, 'origen', 'origen');
 $tipoPedido = obtenerDiccionario($conn, 'tipoPedido', 'tipo');
-$medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
+$medioPago = $conn->query("SELECT id, medio FROM mediosPago WHERE visible = 1")->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // Si venimos de "Crear Nuevo Pedido" desde el historial de un cliente,
 // llega el cliente ya elegido y arrancamos directo en el formulario.

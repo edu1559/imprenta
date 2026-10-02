@@ -63,10 +63,16 @@ if ($alcance === 'pagos' && in_array($tipoMov, ['nosDeben', 'debemos'])) {
 // egresos NUNCA se suman entre sí ni con nos deben/debemos: son vistas
 // separadas, no un único total.
 // ---------------------------------------------------------------------
+// Los pagos con medio 'sinRegistro' cierran pedidos viejos de los que no quedó
+// registrado el pago: no son plata que haya entrado o salido en esa fecha, así
+// que no cuentan como ingreso ni egreso.
+const PAGOS_REALES = "pg.idMedioPago NOT IN (SELECT id FROM mediosPago WHERE medio = 'sinRegistro')";
+
 function metricaPagos($conn, $idTipo, $desdeSQL, $hastaSQL) {
     $stmt = $conn->prepare("SELECT COUNT(*) cant, COALESCE(SUM(pg.monto),0) total
                              FROM pagos pg INNER JOIN pedidos p ON p.id = pg.idPedido
-                             WHERE p.idTipoPedido = ? AND pg.fecha >= ? AND pg.fecha < ?");
+                             WHERE p.idTipoPedido = ? AND pg.fecha >= ? AND pg.fecha < ?
+                               AND " . PAGOS_REALES);
     $stmt->bind_param('iss', $idTipo, $desdeSQL, $hastaSQL);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();
@@ -122,6 +128,7 @@ function detallePagos($conn, array $tipos, $desdeSQL, $hastaSQL) {
                              LEFT JOIN mediosPago mp ON mp.id = pg.idMedioPago
                              LEFT JOIN usuarios u ON u.id = pg.idUsuario
                              WHERE p.idTipoPedido IN ($in) AND pg.fecha >= ? AND pg.fecha < ?
+                               AND " . PAGOS_REALES . "
                              ORDER BY pg.fecha DESC LIMIT 200");
     $stmt->bind_param('ss', $desdeSQL, $hastaSQL);
     $stmt->execute();

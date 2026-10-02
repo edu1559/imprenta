@@ -21,7 +21,7 @@ $res = mysqli_query($conn, $sql);
 $reg = mysqli_fetch_assoc($res);
 
 $medioPago = [];
-$resM = mysqli_query($conn, "SELECT id, medio FROM mediosPago");
+$resM = mysqli_query($conn, "SELECT id, medio FROM mediosPago WHERE visible = 1");
 while($row = mysqli_fetch_row($resM)) $medioPago[$row[0]] = $row[1];
 
 $tipoPedido = [];
