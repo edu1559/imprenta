@@ -69,10 +69,9 @@ $(document).ready(function() {
 });
 </script>
 
-<div class="container-fluid p-3 bg-dark text-white text-center">
-
-  <h1>Imprenta Corintios 13</h1>
-  <p></p>
+<div class="container-fluid py-2 px-3 bg-body-secondary border-bottom d-flex align-items-center gap-2">
+  <img src="imagenes/logo.gif" alt="" height="44">
+  <span class="fs-5 fw-semibold text-dark">Imprenta Corintios 13</span>
 </div>
 
 <div id="contenido">
