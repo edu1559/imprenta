@@ -13,7 +13,7 @@
 //                        pagos 'sinRegistro'); la tabla pagosImportados guarda qué id
 //                        viejo es cada uno, para no cargarlos dos veces.
 //   Pedidos existentes   se copian monto, pagado, estados y fechas del sistema viejo
-//                        si cambiaron. No se tocan los que cerró cerrarPedidosViejos.php
+//                        si cambiaron (solo pedidos desde el 1/3/2026). No se tocan los que cerró cerrarPedidosViejos.php
 //                        ni los anulados; si a uno de esos cerrados le entró un pago
 //                        real, se descuenta de su pago 'sinRegistro'.
 //
@@ -23,6 +23,11 @@ require __DIR__ . '/../limpieza/comun.php';
 const ID_ORIGEN = 1;         // origen y medio que se pusieron en la importación anterior
 const ID_MEDIO_PAGO = 1;     // (el sistema viejo no los registra)
 const USUARIO_SI_NO_HAY = 'edu';
+// Primer pedido que se trajo igual al del sistema viejo (migración del 30/9/2026). Los
+// anteriores nunca se sincronizaron: sus diferencias no son novedades y no se tocan.
+const PRIMER_PEDIDO_MIGRADO = 97167;
+// Contactos unificados en aquella migración, que no figuran en contactosFusionados.
+const CONTACTOS_UNIFICADOS = [4194 => 4193, 14351 => 13981, 16727 => 13981];
 
 // La base vieja guarda el texto en UTF-8 dentro de columnas latin1: se lee en crudo.
 $viejo = conectar();
@@ -108,7 +113,7 @@ $cambiados = $conn->query("SELECT v.idpedido id, n.monto montoN, v.monto, n.mont
         CONCAT(n.estadoPago, n.estadoEntrega, n.estadoProduccion) estadosN, CONCAT(v.estadopago, v.estadoentrega, v.estadoproceso) estadosV,
         v.estadopago, v.estadoentrega, v.estadoproceso, CAST(v.prometido AS CHAR) prometido, CAST(v.salida AS CHAR) salida, DATE(n.entrada) entrada
     FROM imprenta1.pedidos v JOIN pedidos n ON n.id = v.idpedido
-    WHERE v.idpedido <= $maxPedido AND n.anulado = 0
+    WHERE v.idpedido BETWEEN " . PRIMER_PEDIDO_MIGRADO . " AND $maxPedido AND n.anulado = 0
       AND NOT EXISTS (SELECT 1 FROM modificaciones m WHERE m.idPedido = n.id AND m.accion = 'regularizar')
       AND (ABS(v.monto - n.monto) > 0.01 OR ABS(v.montopagado - n.montoPagado) > 0.01 OR v.estadopago <> n.estadoPago
            OR v.estadoentrega <> n.estadoEntrega OR v.estadoproceso <> n.estadoProduccion
@@ -118,6 +123,7 @@ $cambiados = $conn->query("SELECT v.idpedido id, n.monto montoN, v.monto, n.mont
 // contacto de un pedido nuevo: puede haberse fusionado o borrado en la limpieza
 $resolverContacto = function ($id) use ($conn, $hay, $uno, $aplicar, $maxContacto) {
     $id = (int)$id;
+    if (isset(CONTACTOS_UNIFICADOS[$id])) return [CONTACTOS_UNIFICADOS[$id], "contacto $id unificado en " . CONTACTOS_UNIFICADOS[$id]];
     if ($id > $maxContacto) return [$id, "contacto $id todavía no existe"];   // debería venir entre los nuevos
     if ($uno("SELECT COUNT(*) FROM contactos WHERE id = $id")) return [$id, ''];
     if ($hay('contactosFusionados') && ($nuevo = $uno("SELECT COALESCE((SELECT idNuevo FROM contactosFusionados WHERE id = $id), 0)"))) {
