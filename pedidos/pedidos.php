@@ -169,7 +169,8 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
             case 'sinTerminar': $sql .= " WHERE p.estadoProduccion in (1,2) "; break;
             // 'ultimos' (o ningún filtro) no necesita WHERE extra, el LIMIT se encarga
         }
-        $sql .= " ORDER BY p.id DESC LIMIT 30";
+        // Los filtros de pendientes muestran todos, para poder recorrerlos y cerrarlos.
+        $sql .= " ORDER BY p.id DESC" . (in_array($opcion, ['sinPagar', 'sinEntregar', 'sinTerminar']) ? '' : ' LIMIT 30');
     }
     //echo $sql;
 
@@ -328,7 +329,34 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
 	</div>
 		 
        
+<!-- Cerrar un pedido con saldo: ¿la plata entra hoy o ya se había cobrado? -->
+<div class="modal fade" id="modalCerrarSaldo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cerrar pedido #<span id="cerrarSaldoPedido"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                Queda un saldo de <strong id="cerrarSaldoMonto"></strong>. ¿Cómo se cobró?
+                <ul class="small text-muted mt-2 mb-0">
+                    <li><strong>Cobrado ahora:</strong> entra como pago de hoy con el medio del pedido.</li>
+                    <li><strong>Ya estaba cobrado:</strong> se cobró en su momento y no se registró; no suma a la caja de hoy.</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-success btnCerrarCon" data-sinregistro="1">Ya estaba cobrado</button>
+                <button type="button" class="btn btn-success btnCerrarCon">Cobrado ahora</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+
+    // Lo que se está mostrando (filtro o búsqueda), para recargar lo mismo después de cerrar un pedido.
+    var urlListaActual = 'pedidos/pedidos.php?' + <?= json_encode(http_build_query(array_intersect_key($_GET, ['opcion' => 1, 'cadena' => 1]))) ?>;
 
     // Ver todos los pedidos de esta persona (mismo modal de historial que en Contactos)
     $(document).on('click', '.btnVerHistorialCliente', function(){
@@ -431,29 +459,44 @@ $('table').on('click', '.btnCerrar', function() {
         monto: $row.find('td:eq(12)').text(),
         idMedio: $row.find('td[data-medio]').attr('data-medio')
     };
+    var saldo = parseFloat(datos.monto) - parseFloat(datos.montoPagado);
 
-    // Confirmación opcional para evitar cierres accidentales
-    if(confirm("¿Estás seguro de que deseas cerrar este pedido?")) {
-        $.ajax({
-            url: 'pedidos/ajaxPedidos.php',
-            type: 'POST',
-            data: datos,
-            success: function(response) {
-                // 1. Mostramos el mensaje del servidor
-                $('#mensajes').html(response);
-
-                // 2. Refrescamos el listado solo después de confirmar el éxito
-                $('#contenido').load('pedidos/pedidos.php', function() {
-                    // Opcional: Alguna animación o aviso de que se actualizó
-                    console.log("Tabla de pedidos actualizada.");
-                });
-            },
-            error: function() {
-                alert("Error crítico al intentar cerrar el pedido.");
-            }
-        });
+    // Sin saldo no hay plata que registrar: alcanza con confirmar.
+    if (!(saldo > 0.1)) {
+        if (confirm("¿Estás seguro de que deseas cerrar este pedido?")) cerrarPedido(datos);
+        return;
     }
+
+    // Con saldo hay que saber si la plata entra hoy o ya se había cobrado sin registrarla.
+    $('#cerrarSaldoPedido').text(datos.idPedido);
+    $('#cerrarSaldoMonto').text('$' + saldo.toLocaleString('es-AR'));
+    $('#modalCerrarSaldo').data('datos', datos).modal('show');
 });
+
+$('#modalCerrarSaldo .btnCerrarCon').on('click', function() {
+    var datos = $.extend({}, $('#modalCerrarSaldo').data('datos'));
+    if ($(this).data('sinregistro')) datos.sinRegistro = 1;
+    $('#modalCerrarSaldo').modal('hide');
+    cerrarPedido(datos);
+});
+
+function cerrarPedido(datos) {
+    $.ajax({
+        url: 'pedidos/ajaxPedidos.php',
+        type: 'POST',
+        data: datos,
+        success: function(response) {
+            // 1. Mostramos el mensaje del servidor
+            $('#mensajes').html(response);
+
+            // 2. Refrescamos el listado (el mismo filtro o búsqueda) solo después de confirmar el éxito
+            $('#contenido').load(urlListaActual);
+        },
+        error: function() {
+            alert("Error crítico al intentar cerrar el pedido.");
+        }
+    });
+}
 
 $('.btnEstado').click(function() {
     let v_btn = $(this);

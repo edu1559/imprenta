@@ -160,7 +160,33 @@ case 'cerrarPedido':
     }
     
 
-     //   calculo el pago 
+    // "Ya estaba cobrado": el saldo se cobró en su momento pero no se registró. Va como
+    // pago sinRegistro con la fecha del pedido, así no suma a la caja de hoy.
+    if (!empty($_POST['sinRegistro'])) {
+        $saldo = round($actual['monto'] - $actual['montoPagado'], 2);
+        $idSinRegistro = mysqli_fetch_row(mysqli_query($conn, "SELECT id FROM mediosPago WHERE medio = 'sinRegistro'"))[0] ?? null;
+        if (!$idSinRegistro) {
+            echo "❌ Falta el medio de pago 'sinRegistro'.";
+            break;
+        }
+        if ($saldo > 0.1) {
+            $stmt = $conn->prepare("INSERT INTO pagos (fecha, idPedido, monto, idMedioPago, idUsuario)
+                                    SELECT entrada, id, ?, ?, ? FROM pedidos WHERE id = ?");
+            $stmt->bind_param('diii', $saldo, $idSinRegistro, $idUsuario, $actual['id']);
+            $stmt->execute();
+        }
+        registrarModificacion($conn, 'pedido', $actual['id'], $actual['id'], 'regularizar',
+            json_encode(['estadoPago' => $actual['estadoPago'], 'estadoEntrega' => $actual['estadoEntrega'],
+                         'estadoProduccion' => $actual['estadoProduccion'], 'montoPagado' => $actual['montoPagado']]),
+            json_encode(['pagoSinRegistro' => max($saldo, 0)]), 'Cerrado desde Pedidos: ya estaba cobrado');
+        $stmt = $conn->prepare("UPDATE pedidos SET estadoEntrega = 3, estadoProduccion = 3, estadoPago = 3,
+                                    montoPagado = GREATEST(montoPagado, monto) WHERE id = ?");
+        $stmt->bind_param('i', $actual['id']);
+        echo $stmt->execute() ? "✅ Pedido cerrado (el saldo quedó como pago sin registro)." : "❌ Error al cerrar pedido.";
+        break;
+    }
+
+     //   calculo el pago
 
         if  (abs($monto-$montoPagado)>0.1){
 
