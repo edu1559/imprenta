@@ -29,6 +29,8 @@ if (!isset($_SESSION['idUsuario'])) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">  
   <!-- Bootstrap Datepicker CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+  <!-- gris de la cabecera y el pie: un 10% más oscuro que bg-body-secondary (#e9ecef) -->
+  <style>.franja-gris { background-color: #d2d4d7; }</style>
 
   <!-- Bootstrap Datepicker JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
@@ -69,7 +71,7 @@ $(document).ready(function() {
 });
 </script>
 
-<div class="container-fluid py-2 px-3 bg-body-secondary border-bottom d-flex align-items-center gap-2">
+<div class="container-fluid py-2 px-3 franja-gris border-bottom d-flex align-items-center gap-2">
   <img src="imagenes/logo.gif" alt="" height="44">
   <span class="fs-5 fw-semibold text-dark">Imprenta Corintios 13</span>
 </div>
@@ -88,8 +90,8 @@ $(document).ready(function() {
  ?>
 </div>
 	<div id="mensaje" class="text-center fs-sm text-danger"></div>
- <footer class="container-fluid bg-black text-white p-3 text-center">
-    <p>Imprenta Corintios13 - Luis Agote 2028 - corintios@imprentacorintios.com.ar</p>
+ <footer class="container-fluid franja-gris border-top text-dark p-2 text-center">
+    <p class="mb-0">Imprenta Corintios13 - Luis Agote 2028 - corintios@imprentacorintios.com.ar</p>
  </footer>
 
 <div class="modal fade" id="modalUniversal" tabindex="-1" aria-hidden="true">
