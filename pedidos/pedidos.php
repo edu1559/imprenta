@@ -15,6 +15,14 @@ function obtenerDiccionario($conn, $tabla, $columna) {
 $origen = obtenerDiccionario($conn, 'origen', 'origen');
 $tipoPedido = obtenerDiccionario($conn, 'tipoPedido', 'tipo');
 $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
+
+// Cantidades para los botones de filtro. "Abierto" = no cerrado (ver pedidoCerrado() en auditoria.php).
+$cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
+        SUM(NOT (estadoProduccion = 3 AND estadoEntrega = 3 AND estadoPago = 3)) AS abiertos,
+        SUM(estadoProduccion IN (1,2)) AS sinTerminar,
+        SUM(estadoPago IN (1,2))       AS sinPagar,
+        SUM(estadoEntrega IN (1,2))    AS sinEntregar
+    FROM pedidos WHERE anulado = 0"));
 ?>
 
 
@@ -46,10 +54,10 @@ $medioPago = obtenerDiccionario($conn, 'mediosPago', 'medio');
   
         <div class="col-md-5 container-fluid mb-3"> 
             <div class="input-group form-inline d-flex">  
-                <button type="button" class="btn btn-outline-success btnOpciones" data-valor="ultimos">Últimos</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinTerminar">Sin Terminar</button>
-                <button type="button" class="btn btn-outline-danger btnOpciones"  data-valor="sinPagar">Sin Pagar</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinEntregar">Sin Entregar</button>
+                <button type="button" class="btn btn-outline-success btnOpciones" data-valor="ultimos">Últimos (<?= (int)$cantidades['abiertos'] ?>)</button>
+                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinTerminar">Sin Terminar (<?= (int)$cantidades['sinTerminar'] ?>)</button>
+                <button type="button" class="btn btn-outline-danger btnOpciones"  data-valor="sinPagar">Sin Pagar (<?= (int)$cantidades['sinPagar'] ?>)</button>
+                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinEntregar">Sin Entregar (<?= (int)$cantidades['sinEntregar'] ?>)</button>
             </div>
         </div>
 
