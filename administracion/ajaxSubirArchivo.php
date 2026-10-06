@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Incluir conexión a la base de datos
-include_once('../conexion.php'); // Ajusta la ruta si es necesario
+include_once(__DIR__ . '/../conexion.php'); // Ajusta la ruta si es necesario
 $conn = conectarPDO();
 
 // --- Variables ---

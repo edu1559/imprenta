@@ -10,7 +10,7 @@ $pdf->Image('../imagenes/logoTrejo.jpeg', 10, 10, -300);
 // $pdf->Cell(200,20,'Orden de trbajo',1,1,'C');
 
 
-include_once('../conexion.php');
+include_once(__DIR__ . '/../conexion.php');
 $conn = conectar();
 
 

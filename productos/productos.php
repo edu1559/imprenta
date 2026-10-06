@@ -2,7 +2,7 @@
 <!-- Muestra de Productos -->
 
 <?php
-    include_once ('../conexion.php');
+    include_once(__DIR__ . '/../conexion.php');
     $conn = conectar();
 
     $productos = array();

@@ -1,7 +1,7 @@
 <?php
 // Evitar que se imprima cualquier espacio antes del session_start
 session_start();
-include_once('../conexion.php');
+include_once(__DIR__ . '/../conexion.php');
 $conn = conectarPDO();
 
 $opcion = $_GET['opcion'] ?? '';

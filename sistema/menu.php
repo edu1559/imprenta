@@ -6,7 +6,7 @@
 }
 </style>
 <?php
-      include_once ('../conexion.php');
+      include_once(__DIR__ . '/../conexion.php');
       $conn = conectar();
 
 // crear un array de la tabla menu con los campos padres: $padres[id]= nombre;

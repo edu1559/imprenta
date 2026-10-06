@@ -1,7 +1,7 @@
 <?php include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina(); ?>
 
 <?php
-include_once('../conexion.php'); // Asegúrate que la ruta sea correcta
+include_once(__DIR__ . '/../conexion.php'); // Asegúrate que la ruta sea correcta
 $conn = conectarPDO();
 
 /* array productos[idProducto]= array(nombre,foto) */

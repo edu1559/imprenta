@@ -1,6 +1,6 @@
 <?php include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina(); ?>
    <?php
-include_once('../conexion.php');
+include_once(__DIR__ . '/../conexion.php');
 $conn = conectar();
 
 $id = intval($_GET['id']);

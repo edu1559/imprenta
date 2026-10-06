@@ -1,7 +1,7 @@
 <?php
 include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina();
-include_once('../conexion.php');
-include_once('../auditoria.php');
+include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../auditoria.php');
 $conn = conectar();
 $puedeModificar = puedeModificar($conn);
 

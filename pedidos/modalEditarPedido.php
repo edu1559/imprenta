@@ -1,7 +1,7 @@
 <?php
 session_start();
-include_once('../conexion.php');
-include_once('../auditoria.php');
+include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../auditoria.php');
 exigirTrabajadorPagina();
 $conn = conectar();
 

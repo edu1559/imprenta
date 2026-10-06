@@ -1,7 +1,7 @@
 <?php
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorAjax();
-include_once('../conexion.php');
+include_once(__DIR__ . '/../conexion.php');
 $conn = conectar();
 
 $opcion = $_GET['opcion'] ?? $_POST['opcion'] ?? '';

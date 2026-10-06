@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 
-include_once('../conexion.php');
+include_once(__DIR__ . '/../conexion.php');
 $conn = conectar();
 
 $opcion = isset($_REQUEST['opcion']) ? $_REQUEST['opcion'] : '';

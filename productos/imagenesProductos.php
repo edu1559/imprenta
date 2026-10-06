@@ -1,7 +1,7 @@
   <?php
    // Conectar a la base de datos
 
-        include_once ('../conexion.php');
+        include_once(__DIR__ . '/../conexion.php');
         $conn = conectarPDO();
 
     // array asociativo $productos['idProducto']= array (nombre,foto,caracteristicas,enlace,color,orden);

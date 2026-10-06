@@ -3,7 +3,7 @@ include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
    // Conectar a la base de datos
 
-        include_once ('../conexion.php');
+        include_once(__DIR__ . '/../conexion.php');
         $conn = conectar();
 
     // Crear un array de la tabla menu con los campos padres: $padres[id]= nombre;

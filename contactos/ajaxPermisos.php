@@ -2,7 +2,7 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorAjax();
   
-  include_once('../conexion.php');
+  include_once(__DIR__ . '/../conexion.php');
   $conn = conectarPDO();
 
   if(isset($_GET['opcion'])) {
