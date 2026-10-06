@@ -1,5 +1,5 @@
 <?php
-    session_start();
+    include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorAjax();
     include_once('../conexion.php');
     include_once('../auditoria.php');
 	$conn = conectar();

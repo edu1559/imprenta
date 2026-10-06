@@ -5,10 +5,16 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 const ID_USUARIO_VISITANTE = 1;
+const ID_PERFIL_VISITANTE = 2;
+
+// Lo único que puede ver quien no ingresó. Todo lo demás exige un trabajador logueado.
+const PAGINAS_PUBLICAS = ['ingreso/bienvenida.php', 'ingreso/ingreso.php', 'ingreso/contactenos.php',
+                          'contactenos.php', 'productos/productos.php', 'productos/imagenesProductos.php'];
 
 function usuarioLogueado() {
     $id = (int)($_SESSION['idUsuario'] ?? 0);
-    return $id > 0 && $id !== ID_USUARIO_VISITANTE;
+    $perfil = (int)($_SESSION['idPerfil'] ?? ID_PERFIL_VISITANTE);
+    return $id > 0 && $id !== ID_USUARIO_VISITANTE && $perfil !== ID_PERFIL_VISITANTE;
 }
 
 // Para archivos ajax: sin trabajador logueado se corta con 401.
@@ -23,10 +29,14 @@ function exigirTrabajadorAjax() {
 // Para páginas y modales: sin trabajador logueado se muestra un aviso en su lugar.
 function exigirTrabajadorPagina() {
     if (usuarioLogueado()) return;
+    avisoSoloTrabajadores();
+    exit;
+}
+
+function avisoSoloTrabajadores() {
     echo '<div class="container my-5"><div class="alert alert-warning text-center p-4">
             <i class="bi bi-lock fs-1 d-block mb-2"></i>
             Esta sección es solo para trabajadores de la imprenta.<br>
             <a href="index.php?pagina=ingreso/ingreso.php" class="btn btn-primary mt-3">Ingresar</a>
           </div></div>';
-    exit;
 }

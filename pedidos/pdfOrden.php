@@ -1,4 +1,6 @@
 <?php  
+include_once(__DIR__ . '/../sesion.php');
+exigirTrabajadorPagina();
 
 require('../fpdf186/fpdf.php');
 $pdf = new FPDF();

@@ -1,0 +1,10 @@
+# Nada de listados de carpetas ni descarga de volcados, respaldos o archivos de trabajo.
+Options -Indexes
+
+<FilesMatch "\.(sql|gz|tar|tgz|bak|swp|md|csv|log|code-workspace)$">
+    Require all denied
+</FilesMatch>
+
+# Carpetas que no son del sitio y archivos ocultos (menos .well-known, que usa el certificado).
+RedirectMatch 404 (^|/)(sql|documentacion)(/|$)
+RedirectMatch 404 (^|/)\.(?!well-known)

@@ -1,4 +1,6 @@
 <?php
+include_once(__DIR__ . '/../sesion.php');
+exigirTrabajadorAjax();
 // --- INICIO: Script administracion/subirArchivo.php ---
 
 // Verificar que la petición sea POST

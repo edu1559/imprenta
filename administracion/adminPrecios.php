@@ -1,4 +1,6 @@
 <?php
+include_once(__DIR__ . '/../sesion.php');
+exigirTrabajadorPagina();
    // Conectar a la base de datos
 
         include_once ('../conexion.php');

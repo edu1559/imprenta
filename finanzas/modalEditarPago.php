@@ -1,4 +1,6 @@
 <?php
+include_once(__DIR__ . '/../sesion.php');
+exigirTrabajadorPagina();
 include_once('../conexion.php');
 $conn = conectar();
 $idPago = (int)$_GET['idPago'];

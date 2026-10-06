@@ -80,12 +80,18 @@ $(document).ready(function() {
 
  <?php 
  
- if(isset($_GET['pagina'])){
-	$pagina = $_GET['pagina'];
- }else{
+ // Solo se incluyen páginas propias (carpeta/archivo.php), nunca una ruta armada a mano,
+ // y quien no ingresó solo ve las públicas (el resto muestra el aviso sin cortar la página).
+ include_once(__DIR__ . '/sesion.php');
+ $pagina = $_GET['pagina'] ?? 'ingreso/bienvenida.php';
+ if (!is_string($pagina) || !preg_match('#^[A-Za-z0-9_]+(/[A-Za-z0-9_]+)*\.php$#', $pagina) || !is_file(__DIR__ . '/' . $pagina)) {
 	$pagina = 'ingreso/bienvenida.php';
- };
+ }
+ if (!usuarioLogueado() && !in_array($pagina, PAGINAS_PUBLICAS, true)) {
+	avisoSoloTrabajadores();
+ } else {
 	include_once($pagina);
+ }
  
  ?>
 </div>

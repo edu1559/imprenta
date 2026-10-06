@@ -1,3 +1,4 @@
+<?php include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina(); ?>
   <?php
    // Conectar a la base de datos
 

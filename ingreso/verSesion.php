@@ -1,4 +1,4 @@
- <?php session_start()?>
+ <?php include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina(); ?>
 
 <div class="container p-5 my-5 justify-content-center rounded" style="width:500px;background-color:rgb(229, 229, 229)" >
 <h3 class="text-center">Valores de la sesión actual</h3>

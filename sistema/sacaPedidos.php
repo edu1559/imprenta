@@ -1,4 +1,6 @@
 <?php
+include_once(__DIR__ . '/../sesion.php');
+exigirTrabajadorPagina();
       include_once ("../conexionImprenta.php");
       $connImp = conectar();
     

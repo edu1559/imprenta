@@ -1,5 +1,5 @@
 <?php
- session_start();  
+ include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorAjax();
     include_once('../conexion.php');
 	$conn=conectar();
     

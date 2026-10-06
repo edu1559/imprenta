@@ -1,3 +1,4 @@
+<?php include_once(__DIR__ . '/../sesion.php'); exigirTrabajadorPagina(); ?>
 <style>
 .mi-fila-resaltada {
   font-weight: bold;
