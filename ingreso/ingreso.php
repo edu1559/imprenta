@@ -36,7 +36,7 @@
         let btn = $(this);
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Verificando...');
 
-        $.get('ingreso/ajaxIngreso.php', {
+        $.post('ingreso/ajaxIngreso.php', {
             opcion: 'ingreso',
             usuario: v_usuario,
             clave: v_clave

@@ -4,13 +4,15 @@ session_start();
 include_once(__DIR__ . '/../conexion.php');
 $conn = conectarPDO();
 
-$opcion = $_GET['opcion'] ?? '';
+// El ingreso llega por POST (la clave no tiene que quedar en la URL ni en el log de
+// Apache); cerrarSesion sigue llegando por GET.
+$opcion = $_POST['opcion'] ?? $_GET['opcion'] ?? '';
 
 switch ($opcion) {
 
 case 'ingreso':
-    $usuario = $_GET['usuario'];
-    $clave = $_GET['clave'];
+    $usuario = $_POST['usuario'] ?? '';
+    $clave = $_POST['clave'] ?? '';
 
     // Buscamos el usuario y su perfil (asumiendo que agregaste idPerfil a la tabla usuarios)
     $sql = "SELECT u.id, u.idPerfil, c.apellido, c.nombre
