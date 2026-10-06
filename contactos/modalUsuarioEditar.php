@@ -15,6 +15,11 @@ $reg = mysqli_fetch_assoc($res);
 
 // 2. Traemos los perfiles para el select
 $resPerfiles = mysqli_query($conn, "SELECT id, perfil FROM perfiles ORDER BY perfil ASC");
+
+// 3. Foto actual: mismo nombre que arma ingreso/ajaxIngreso.php para la barra del menú
+$fotoActual = "fotoUsuarios/" . $reg['apellido'] . "-" . $reg['nombre'] . ".jpg";
+$fotoSrc = file_exists(__DIR__ . "/../$fotoActual") ? rawurlencode_ruta($fotoActual) . "?t=" . time() : "fotoUsuarios/sinLoguear.png";
+function rawurlencode_ruta($ruta) { return implode('/', array_map('rawurlencode', explode('/', $ruta))); }
 ?>
 
 <div class="modal-header bg-primary text-white">
@@ -47,6 +52,16 @@ $resPerfiles = mysqli_query($conn, "SELECT id, perfil FROM perfiles ORDER BY per
         </div>
 
         <div class="mb-3">
+            <label class="form-label fw-bold">Foto:</label>
+            <div class="d-flex align-items-center gap-3">
+                <img id="fotoPreview" src="<?php echo $fotoSrc; ?>" class="rounded-circle border"
+                     width="64" height="64" style="object-fit: cover; background: #eee;">
+                <input type="file" class="form-control" id="fotoEdit" accept="image/*">
+            </div>
+            <div class="form-text">Si ya tenía foto, la anterior se guarda como respaldo.</div>
+        </div>
+
+        <div class="mb-3">
             <label class="form-label fw-bold">Perfil / Rol:</label>
             <select class="form-select" id="perfilEdit">
                 <?php while($p = mysqli_fetch_assoc($resPerfiles)) { 
@@ -72,26 +87,70 @@ $('#togglePass').click(function() {
     input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
 });
 
+// Todo dentro de una función: el modal se carga por ajax cada vez que se abre, y un
+// 'let' suelto a nivel global falla al volver a abrirlo (la variable ya existe).
+(function() {
+
+// Foto elegida: se achica a 600px y se pasa a JPG en el navegador, así cualquier
+// foto de celular entra (el servidor acepta hasta 2 MB) y queda como .jpg.
+let fotoNueva = null;
+$('#fotoEdit').change(function() {
+    fotoNueva = null;
+    let archivo = this.files[0];
+    if (!archivo) return;
+    let img = new Image();
+    img.onload = function() {
+        let escala = Math.min(1, 600 / Math.max(img.width, img.height));
+        let canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * escala);
+        canvas.height = Math.round(img.height * escala);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(function(blob) {
+            fotoNueva = blob;
+            $('#fotoPreview').attr('src', URL.createObjectURL(blob));
+        }, 'image/jpeg', 0.85);
+        URL.revokeObjectURL(img.src);
+    };
+    img.onerror = function() {
+        alert("No se pudo leer la imagen. Probá con una foto JPG o PNG.");
+        $('#fotoEdit').val('');
+    };
+    img.src = URL.createObjectURL(archivo);
+});
+
 // Guardar Cambios
 $('#btnActualizar').click(function() {
-    let datos = {
-        opcion: 'actualizarUsuario',
-        id: $('#idEdit').val(),
-        usuario: $('#userEdit').val(),
-        clave: $('#passEdit').val(), // Si va vacío, el ajaxUsuarios.php ya sabe qué hacer
-        idPerfil: $('#perfilEdit').val()
-    };
+    let datos = new FormData();
+    datos.append('opcion', 'actualizarUsuario');
+    datos.append('id', $('#idEdit').val());
+    datos.append('usuario', $('#userEdit').val());
+    datos.append('clave', $('#passEdit').val()); // Si va vacío, la clave no se cambia
+    datos.append('idPerfil', $('#perfilEdit').val());
+    if (fotoNueva) datos.append('foto', fotoNueva, 'foto.jpg');
 
-    if(!datos.usuario) {
+    if(!$('#userEdit').val()) {
         alert("El nombre de usuario no puede estar vacío.");
         return;
     }
+    if ($('#fotoEdit').val() && !fotoNueva) {
+        alert("La foto todavía se está preparando, probá de nuevo en un segundo.");
+        return;
+    }
 
-    $.post('contactos/ajaxUsuarios.php', datos, function(res) {
-        alert(res);
-        $('#modalUsuario').modal('hide');
-        // Recargamos la lista de usuarios para ver los cambios (ej. si cambió el perfil)
-        $('#contenido').load('contactos/usuarios.php'); 
+    $.ajax({
+        url: 'contactos/ajaxUsuarios.php',
+        type: 'POST',
+        data: datos,
+        processData: false,
+        contentType: false,
+        success: function(res) {
+            alert(res);
+            $('#modalUsuario').modal('hide');
+            // Recargamos la lista de usuarios para ver los cambios (ej. si cambió el perfil)
+            $('#contenido').load('contactos/usuarios.php');
+        }
     });
 });
+
+})();
 </script>

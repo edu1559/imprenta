@@ -71,56 +71,45 @@ switch ($opcion) {
     case 'actualizarUsuario':
 
     $id = intval($_POST['id']);
-    $user = mysqli_real_escape_string($conn, $_POST['usuario']);
+    $user = $_POST['usuario'];
     $perfil = intval($_POST['idPerfil']);
     $clave = $_POST['clave'];
 
-    // 1. Manejo de la FOTO
+    // 1. Manejo de la FOTO: fotoUsuarios/Apellido-Nombre.jpg, el mismo nombre que arma
+    // ingreso/ajaxIngreso.php para la barra del menú. La foto anterior no se pisa: queda
+    // como Apellido-Nombre(1).jpg, (2), ... El modal ya la manda achicada y en JPG.
     if (isset($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
-
-        // Obtenemos nombres del contacto para el nombre del archivo
-        $resNom = mysqli_query($conn, "SELECT apellido, nombre FROM contactos WHERE id = $id");
-        $datNom = mysqli_fetch_assoc($resNom);
-
-        // Limpiamos espacios y caracteres raros para el nombre del archivo
-        $nombreArchivo = $datNom['apellido'] . "-" . $datNom['nombre'] . ".jpg";
-        $nombreArchivo = str_replace(' ', '', $nombreArchivo); // Quita espacios
-
-        $directorioDestino = "../fotoUsuarios/"; // Asegúrate que la ruta sea correcta desde ajax/
-        $rutaFinal = $directorioDestino . $nombreArchivo;
-
-        // Requisitos de Seguridad
-        $permitidos = ['image/jpeg', 'image/jpg'];
-        $limite_kb = 2000; // 2MB
-
-        if (!in_array($_FILES['foto']['type'], $permitidos)) {
-            die("Error: Solo se permiten archivos JPG.");
-        }
-        if ($_FILES['foto']['size'] > $limite_kb * 1024) {
-            die("Error: El archivo es muy pesado (Máximo 2MB).");
+        if ((new finfo(FILEINFO_MIME_TYPE))->file($_FILES['foto']['tmp_name']) !== 'image/jpeg') {
+            die("Error: la foto tiene que ser una imagen JPG.");
         }
 
-        // Si todo está bien, lo movemos (sobreescribe si ya existe)
-        if (!move_uploaded_file($_FILES['foto']['tmp_name'], $rutaFinal)) {
+        $datNom = mysqli_fetch_assoc(mysqli_query($conn, "SELECT apellido, nombre FROM contactos WHERE id = $id"));
+        $base = str_replace(['/', '\\'], '', $datNom['apellido'] . "-" . $datNom['nombre']);
+        $carpeta = __DIR__ . "/../fotoUsuarios/";
+
+        if (file_exists($carpeta . "$base.jpg")) {
+            for ($n = 1; file_exists($carpeta . "$base($n).jpg"); $n++);
+            rename($carpeta . "$base.jpg", $carpeta . "$base($n).jpg");
+        }
+        if (!move_uploaded_file($_FILES['foto']['tmp_name'], $carpeta . "$base.jpg")) {
             die("Error al guardar la foto en el servidor.");
         }
+    } elseif (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
+        die("Error al subir la foto (código {$_FILES['foto']['error']}).");
     }
 
-    // 2. Actualización de datos en DB
-    $sql = "UPDATE usuarios SET usuario = '$user', idPerfil = $perfil, clave='$clave' where id = $id    ";
-
-
-   /*
-    if (!empty($clave)) {
-        $passHash = password_hash($clave, PASSWORD_DEFAULT); // ¡Siempre usa hash!
-        $sql .= ", clave = '$passHash'";
+    // 2. Actualización de datos en DB. La clave solo cambia si se escribió una nueva.
+    if ($clave !== '') {
+        $stmt = $conn->prepare("UPDATE usuarios SET usuario = ?, idPerfil = ?, clave = ? WHERE id = ?");
+        $stmt->bind_param('sisi', $user, $perfil, $clave, $id);
+    } else {
+        $stmt = $conn->prepare("UPDATE usuarios SET usuario = ?, idPerfil = ? WHERE id = ?");
+        $stmt->bind_param('sii', $user, $perfil, $id);
     }
-    $sql .= " WHERE id = $id";
-   */
-    if (mysqli_query($conn, $sql)) {
+    if ($stmt->execute()) {
         echo "Usuario actualizado correctamente.";
     } else {
-        echo "Error: " . mysqli_error($conn);
+        echo "Error: " . $stmt->error;
     }
     break;
 
