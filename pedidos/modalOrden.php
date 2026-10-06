@@ -64,8 +64,12 @@ $nombre   = $myrow['nombre'];
             display: <?php echo ($saldo <= 0.1) ? 'inline-block' : 'none'; ?>;
         }
 
+        /* Sin margen de página el navegador no tiene dónde imprimir su encabezado y pie
+           (fecha, título, dirección de la página); el margen lo da el padding del contenedor. */
+        @page { margin: 0; }
+
         @media print {
-            body { 
+            body {
                     background: white !important; 
                 }
             .no-print {
