@@ -23,6 +23,20 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
         SUM(estadoPago IN (1,2))       AS sinPagar,
         SUM(estadoEntrega IN (1,2))    AS sinEntregar
     FROM pedidos WHERE anulado = 0"));
+
+// Vista "pedidos de un contacto": todos sus pedidos en la tabla, para editarlos o cobrarlos.
+const MAX_PEDIDOS_CONTACTO = 100;
+$idContactoVer = isset($_GET['idContacto']) ? (int)$_GET['idContacto'] : 0;
+$contactoVer = null;
+if ($idContactoVer > 0) {
+    $abierto = "NOT (p.estadoProduccion = 3 AND p.estadoEntrega = 3 AND p.estadoPago = 3)";
+    $contactoVer = mysqli_fetch_assoc(mysqli_query($conn, "SELECT CONCAT(c.apellido, ' ', COALESCE(c.nombre, '')) AS contacto,
+            COUNT(p.id) AS total, COALESCE(SUM($abierto), 0) AS pendientes,
+            COALESCE(SUM(IF($abierto, GREATEST(p.monto - p.montoPagado, 0), 0)), 0) AS saldo
+        FROM contactos c LEFT JOIN pedidos p ON p.idContacto = c.id AND p.anulado = 0
+        WHERE c.id = $idContactoVer GROUP BY c.id, c.apellido, c.nombre"));
+    if (!$contactoVer) $idContactoVer = 0;
+}
 ?>
 
 
@@ -81,6 +95,23 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
 <!-- tblPedidos-->  
 
     <div id="tblContenedor" class="container text-left" >
+
+    <?php if ($contactoVer) { ?>
+    <div class="alert alert-primary d-flex justify-content-between align-items-center mt-3 mb-0 py-2">
+        <div>
+            <i class="bi bi-person-lines-fill"></i>
+            Pedidos de <strong><?= htmlspecialchars(trim($contactoVer['contacto'])) ?></strong>:
+            <?= (int)$contactoVer['total'] ?> en total, <?= (int)$contactoVer['pendientes'] ?> pendientes
+            <?php if ($contactoVer['saldo'] > 0.1) { ?>
+                (saldo $<?= number_format($contactoVer['saldo'], 0, ',', '.') ?>)
+            <?php } ?>
+            <?php if ($contactoVer['total'] > MAX_PEDIDOS_CONTACTO) { ?>
+                <span class="small text-muted">— se muestran <?= MAX_PEDIDOS_CONTACTO ?>: los pendientes y los más recientes</span>
+            <?php } ?>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnVolverLista"><i class="bi bi-arrow-left"></i> Volver</button>
+    </div>
+    <?php } ?>
  
     <table class="table table-striped table-hover rounded me-5 mt-3" id="tblPedidos">
     <thead>
@@ -144,7 +175,14 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
     $cadena = (isset($_GET['cadena']) && !empty($_GET['cadena'])) ? mysqli_real_escape_string($conn, $_GET['cadena']) : null;
     $opcion = isset($_GET['opcion']) ? $_GET['opcion'] : null;
 
-    if ($cadena !== null && is_numeric($cadena)) {
+    if ($idContactoVer > 0) {
+        // Todos los pedidos de un contacto, editables (botón de la última columna):
+        // primero los pendientes, que son los que se suelen cobrar o cerrar juntos.
+        $sql = "$baseSelect WHERE p.idContacto = $idContactoVer
+                ORDER BY (p.estadoProduccion = 3 AND p.estadoEntrega = 3 AND p.estadoPago = 3), p.id DESC
+                LIMIT " . MAX_PEDIDOS_CONTACTO;
+
+    } elseif ($cadena !== null && is_numeric($cadena)) {
         // Búsqueda por # de pedido exacto
         $sql = "$baseSelect WHERE p.id = $cadena ORDER BY p.id DESC LIMIT 30";
 
@@ -311,7 +349,13 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
                         // Ver todos los pedidos de esta persona (mismo modal de historial
                         // que ya se usa desde Contactos), útil sobre todo cuando la búsqueda
                         // por apellido agrupa varias personas con el mismo apellido.
-                        echo "<td><button class='btn btn-outline-primary btn-sm btnVerHistorialCliente' data-idcontacto='$myrow[1]' title='Ver todos los pedidos de esta persona'><i class='bi bi-clipboard2-data'></i></button></td>";
+                        // El segundo botón trae esos mismos pedidos a esta tabla, donde se pueden
+                        // editar, cobrar y cerrar (el historial es solo de lectura).
+                        echo "<td class='text-nowrap'><button class='btn btn-outline-primary btn-sm btnVerHistorialCliente' data-idcontacto='$myrow[1]' title='Ver todos los pedidos de esta persona'><i class='bi bi-clipboard2-data'></i></button>";
+                        if (!$contactoVer) {
+                            echo " <button class='btn btn-outline-success btn-sm btnVerPedidosCliente' data-idcontacto='$myrow[1]' title='Traer todos sus pedidos a esta tabla, para editarlos o cobrarlos'><i class='bi bi-list-check'></i></button>";
+                        }
+                        echo "</td>";
                         
                         echo "</tr>";
                     }
@@ -356,7 +400,17 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
 <script>
 
     // Lo que se está mostrando (filtro o búsqueda), para recargar lo mismo después de cerrar un pedido.
-    var urlListaActual = 'pedidos/pedidos.php?' + <?= json_encode(http_build_query(array_intersect_key($_GET, ['opcion' => 1, 'cadena' => 1]))) ?>;
+    var urlListaActual = 'pedidos/pedidos.php?' + <?= json_encode(http_build_query(array_intersect_key($_GET, ['opcion' => 1, 'cadena' => 1, 'idContacto' => 1]))) ?>;
+
+    // Traer a la tabla todos los pedidos de un contacto, para editarlos o cobrarlos.
+    // Se recuerda la lista de la que se vino (filtro o búsqueda) para el botón Volver.
+    $('.btnVerPedidosCliente').on('click', function(){
+        window.urlListaVolver = urlListaActual;
+        $('#contenido').load('pedidos/pedidos.php?idContacto=' + $(this).data('idcontacto'));
+    });
+    $('#btnVolverLista').on('click', function(){
+        $('#contenido').load(window.urlListaVolver || 'pedidos/pedidos.php');
+    });
 
     // Ver todos los pedidos de esta persona (mismo modal de historial que en Contactos)
     $(document).on('click', '.btnVerHistorialCliente', function(){

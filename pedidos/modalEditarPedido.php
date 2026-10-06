@@ -264,7 +264,7 @@ function accionConMotivo(opcion, mensaje) {
         alert(res);
         if (res.trim().indexOf('✅') !== 0) return;
         $('#modalUniversal').modal('hide');
-        $('#contenido').load('pedidos/pedidos.php');
+        $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
     });
 }
 
@@ -297,7 +297,7 @@ $('#btnActualizarPedido').on('click', function() {
     $.post('pedidos/ajaxPedidos.php', datos, function(res) {
         alert(res);
         $('#modalUniversal').modal('hide');
-        $('#contenido').load('pedidos/pedidos.php');
+        $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
     });
 });
 </script>

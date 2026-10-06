@@ -192,7 +192,7 @@ $resHistorial = mysqli_query($conn, $sqlPagos);
 <script>
 function recargarPagosPedido() {
     $('#modalUniversal .modal-content').load('pedidos/modalPedidoPagos.php?idPedido=<?php echo $idPedido; ?>');
-    $('#contenido').load('pedidos/pedidos.php');
+    $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
 }
 
 $('.btnEditarPagoPedido').click(function() {
@@ -264,7 +264,7 @@ $('#btnNvoPago').click(function(){
     }, function(data) {
         $('#modalUniversal').modal('hide');
         // Recargamos el tablero de pedidos para ver los cambios de colores/montos
-        $('#contenido').load('pedidos/pedidos.php');
+        $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
         alert("Pago registrado correctamente");
     });
 });
