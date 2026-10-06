@@ -73,11 +73,14 @@ $idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 1; // 1 = 
         
         <?php
         // CORRECCIÓN DE LA FOTO: Verificamos la variable correcta definida en ajaxIngreso
-        $foto = (!empty($_SESSION['foto']) && file_exists($_SESSION['foto'])) 
-                ? $_SESSION['foto'] 
-                : "usuarios/inicio_bak.jpg"; 
+        // Sin foto propia se muestra la silueta genérica. La ruta va codificada porque
+        // el nombre del archivo es Apellido-Nombre y puede tener espacios o acentos.
+        $foto = (!empty($_SESSION['foto']) && file_exists(__DIR__ . '/' . $_SESSION['foto']))
+                ? $_SESSION['foto']
+                : "fotoUsuarios/sinLoguear.png";
+        $foto = implode('/', array_map('rawurlencode', explode('/', $foto)));
         ?>
-        <img src="<?php echo $foto; ?>?t=<?php echo time(); ?>" 
+        <img src="<?php echo $foto; ?>?t=<?php echo time(); ?>"
              class="rounded-circle border shadow-sm" 
              width="40px" height="40px" 
              style="object-fit: cover; background: #eee;">
