@@ -2,8 +2,33 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../celular.php');
 $conn = conectar();   
 
+
+// Botón de WhatsApp de cada pedido: abre el chat del cliente con un mensaje ya escrito.
+function botonWhatsAppPedido($idPedido, $celular, $apellido, $nombre, $saldo) {
+    if (!$celular) {
+        return "<button class='btn btn-outline-secondary btn-sm' disabled title='El cliente no tiene celular cargado'><i class='bi bi-whatsapp'></i></button>";
+    }
+    $hola = 'Hola ' . nombreSaludo($apellido, $nombre) . ', ';
+    $firma = ' Imprenta Corintios 13';
+    $mensajes = ['Pedido listo para retirar' => $hola . "tu pedido #$idPedido ya está listo para retirar." . $firma];
+    if ($saldo > 0.1) {
+        $monto = rtrim(rtrim(number_format($saldo, 2, ',', '.'), '0'), ',');
+        $mensajes["Saldo pendiente: \$$monto"] = $hola . "te recordamos que del pedido #$idPedido queda un saldo de \$$monto." . $firma;
+    }
+    $mensajes['Mensaje libre'] = $hola;
+
+    $items = '';
+    foreach ($mensajes as $titulo => $texto) {
+        $items .= "<li><a class='dropdown-item small' target='_blank' rel='noopener' href='" . htmlspecialchars(enlaceWhatsApp($celular, $texto), ENT_QUOTES) . "'>$titulo</a></li>";
+    }
+    return "<div class='btn-group'>
+              <button type='button' class='btn btn-outline-success btn-sm dropdown-toggle' data-bs-toggle='dropdown' title='WhatsApp: " . mostrarCelular($celular) . "'><i class='bi bi-whatsapp'></i></button>
+              <ul class='dropdown-menu dropdown-menu-end'><li><h6 class='dropdown-header'>" . mostrarCelular($celular) . "</h6></li>$items</ul>
+            </div>";
+}
 
 function obtenerDiccionario($conn, $tabla, $columna) {
     $arr = [];
@@ -164,7 +189,10 @@ if ($idContactoVer > 0) {
                 (p.monto - p.montoPagado) as saldo,
                 p.idMedioPago,
                 p.idOrigen,
-                u.usuario 
+                u.usuario,
+                c.celular,      -- 17: para el botón de WhatsApp (van al final para no correr los índices)
+                c.apellido,     -- 18
+                c.nombre        -- 19
         from pedidos p 
                 inner join contactos c 
                     on p.idContacto = c.id 
@@ -355,6 +383,7 @@ if ($idContactoVer > 0) {
                         if (!$contactoVer) {
                             echo " <button class='btn btn-outline-success btn-sm btnVerPedidosCliente' data-idcontacto='$myrow[1]' title='Traer todos sus pedidos a esta tabla, para editarlos o cobrarlos'><i class='bi bi-list-check'></i></button>";
                         }
+                        echo " " . botonWhatsAppPedido($myrow[0], $myrow[17], $myrow[18], $myrow[19], (float)$myrow[13]);
                         echo "</td>";
                         
                         echo "</tr>";

@@ -2,6 +2,7 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../celular.php');
 $conn = conectarPDO();
 
 // Validación de seguridad para el ID
@@ -12,7 +13,7 @@ if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
 }
 
 /* Busco los datos del contacto */
-$sql = "select id, apellido, nombre, telefono, correo, tipoFactura, cuit, notas, esEmpresa
+$sql = "select id, apellido, nombre, telefono, celular, correo, tipoFactura, cuit, notas, esEmpresa
         from contactos
         where id = :idContacto ";
 
@@ -31,6 +32,7 @@ $id = $myrow["id"];
 $apellido = $myrow["apellido"];
 $nombre = $myrow["nombre"];
 $telefono = $myrow["telefono"];
+$celular = $myrow["celular"] ? mostrarCelular($myrow["celular"]) : '';
 $correo = $myrow["correo"];
 $tipoFactura = $myrow["tipoFactura"];
 $cuit = $myrow["cuit"];
@@ -64,13 +66,17 @@ $esEmpresa = $myrow["esEmpresa"];
             </div>
 
             <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="telefono1" class="form-label">Teléfono:</label>
-                    <input type="text" class="form-control" id="telefono1" value="<?php echo htmlspecialchars($telefono); ?>">
+                <div class="col-md-4">
+                    <label for="celular1" class="form-label"><i class="bi bi-whatsapp text-success"></i> Celular:</label>
+                    <input type="text" class="form-control" id="celular1" placeholder="351 532-9898" value="<?php echo htmlspecialchars($celular); ?>">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
+                    <label for="telefono1" class="form-label">Teléfono fijo / otro:</label>
+                    <input type="text" class="form-control" id="telefono1" maxlength="50" value="<?php echo htmlspecialchars($telefono); ?>">
+                </div>
+                <div class="col-md-4">
                     <label for="correo1" class="form-label">Correo:</label>
-                    <input type="email" class="form-control" id="correo1" value="<?php echo htmlspecialchars($correo); ?>">
+                    <input type="email" class="form-control" id="correo1" maxlength="100" value="<?php echo htmlspecialchars($correo); ?>">
                 </div>
             </div>
 
@@ -93,28 +99,24 @@ $esEmpresa = $myrow["esEmpresa"];
 
 <script>
     $('#guardarDatos').click(function(){
-        // Captura de datos
-        var v_apellido = encodeURI($('#apellido1').val());
-        var v_nombre = encodeURI($('#nombre1').val());
-        var v_telefono = encodeURI($('#telefono1').val());
-        var v_correo = encodeURI($('#correo1').val());
-        var v_notas = encodeURI($('#notas1').val()); // Agregué el campo notas
-        var v_idContacto = encodeURI($('#idContacto1').val());
-        
-        // CONSTRUCCIÓN SEGURA DE LA URL
-        // Usamos encodeURIComponent para evitar errores si hay espacios o caracteres especiales (&, ?, etc)
-        var v_url = 'contactos/ajaxContactos.php?opcion=actualizarContacto' +
-            '&id=' + v_idContacto +
-            '&apellido=' + v_apellido +
-            '&nombre=' + v_nombre +
-            '&esEmpresa=' + ($('#esEmpresa1').is(':checked') ? 1 : 0) +
-            '&telefono=' + v_telefono +
-            '&correo=' + v_correo +
-            '&notas=' + v_notas;
-           
-            alert(v_url);
-        
-      $('#mensaje').load(v_url);
-        
+        // $.get codifica cada valor (con encodeURI se rompían nombres con & o #)
+        $.get('contactos/ajaxContactos.php', {
+            opcion: 'actualizarContacto',
+            id: $('#idContacto1').val(),
+            apellido: $('#apellido1').val(),
+            nombre: $('#nombre1').val(),
+            esEmpresa: $('#esEmpresa1').is(':checked') ? 1 : 0,
+            celular: $('#celular1').val().trim(),
+            telefono: $('#telefono1').val(),
+            correo: $('#correo1').val(),
+            notas: $('#notas1').val()
+        }, function(res) {
+            // Con error (por ejemplo un celular que no se entiende) el modal queda abierto.
+            if (res.indexOf('Se actualizo') === -1) {
+                alert(res);
+                return;
+            }
+            $('#modalUniversal').modal('hide');
+        });
     });
 </script>

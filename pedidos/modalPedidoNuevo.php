@@ -90,12 +90,12 @@ $idTipoInicial = array_key_first($tipoPedido) ?: 1;
                         </div>
                         <div class="row g-2 mb-2">
                             <div class="col-md-6">
-                                <label class="small fw-bold">Teléfono / WhatsApp:</label>
-                                <input type="text" class="form-control form-control-sm" id="ncTelefono">
+                                <label class="small fw-bold"><i class="bi bi-whatsapp text-success"></i> Celular:</label>
+                                <input type="text" class="form-control form-control-sm" id="ncCelular" placeholder="351 532-9898">
                             </div>
                             <div class="col-md-6">
                                 <label class="small fw-bold">Correo (opcional):</label>
-                                <input type="email" class="form-control form-control-sm" id="ncCorreo">
+                                <input type="email" class="form-control form-control-sm" id="ncCorreo" maxlength="100">
                             </div>
                         </div>
                         <div class="d-flex gap-2">
@@ -253,7 +253,7 @@ $(document).ready(function() {
         var data = e.params.data;
         if (data.id === 'NEW') {
             $('#ncApellido').val(data.nombreNuevo || '');
-            $('#ncNombre, #ncTelefono, #ncCorreo').val('');
+            $('#ncNombre, #ncCelular, #ncCorreo').val('');
             $('#clienteBuscador').hide();
             $('#panelNuevoCliente').show();
             $('#restoFormulario').css('opacity', '.35').find('input, select, textarea, button').prop('disabled', true);
@@ -309,7 +309,7 @@ $(document).ready(function() {
             opcion: 'agregarContactoInline',
             apellido: encodeURIComponent(v_apellido),
             nombre: encodeURIComponent($('#ncNombre').val().trim()),
-            telefono: $('#ncTelefono').val().trim(),
+            celular: $('#ncCelular').val().trim(),
             correo: $('#ncCorreo').val().trim()
         }, function(resp) {
             boton.prop('disabled', false).html('<i class="bi bi-save"></i> Guardar cliente y continuar');

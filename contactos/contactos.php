@@ -2,6 +2,7 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../celular.php');
 $conn = conectar();
 
 // Limpiamos variables de entrada
@@ -9,10 +10,10 @@ $cadena = isset($_GET['cadena']) ? mysqli_real_escape_string($conn, $_GET['caden
 $ultimos = isset($_GET['ultimos']) ? true : false;
 
 // Construcción de la SQL
-$sql = "SELECT id, apellido, nombre, telefono, correo, notas, esEmpresa FROM contactos ";
+$sql = "SELECT id, apellido, nombre, telefono, celular, correo, notas, esEmpresa FROM contactos ";
 
 if ($cadena) {
-    $sql .= " WHERE apellido LIKE '%$cadena%' OR nombre LIKE '%$cadena%' OR telefono LIKE '%$cadena%'";
+    $sql .= " WHERE apellido LIKE '%$cadena%' OR nombre LIKE '%$cadena%' OR telefono LIKE '%$cadena%' OR celular LIKE '%$cadena%'";
 }
 
 if ($ultimos) {
@@ -62,7 +63,7 @@ $result = mysqli_query($conn, $sql);
                         <tr class="table-primary">
                             <th class="text-muted">ID</th>
                             <th>Contacto</th>
-                            <th>Teléfono/ws</th>
+                            <th>Celular / Teléfono</th>
                             <th>Correo Electrónico</th>
                             <th>Notas</th>
                             <th class="text-center">Acciones</th>
@@ -73,17 +74,25 @@ $result = mysqli_query($conn, $sql);
                         if (mysqli_num_rows($result) > 0) {
                             while ($row = mysqli_fetch_assoc($result)) {
                                 $iconoEmpresa = $row['esEmpresa'] ? "<i class='bi bi-building text-secondary me-1' title='Empresa o institución'></i>" : "";
+                                // Celular como enlace a WhatsApp (abre el chat con el saludo) y debajo el teléfono fijo, si hay
+                                $telefonos = '';
+                                if ($row['celular']) {
+                                    $enlace = htmlspecialchars(enlaceWhatsApp($row['celular'], 'Hola ' . nombreSaludo($row['apellido'], $row['nombre']) . ', '), ENT_QUOTES);
+                                    $telefonos .= "<div class='small'><a href='$enlace' target='_blank' rel='noopener' class='text-success text-decoration-none' title='Escribir por WhatsApp'><i class='bi bi-whatsapp me-1'></i>" . mostrarCelular($row['celular']) . "</a></div>";
+                                }
+                                if (trim((string)$row['telefono']) !== '') {
+                                    $telefonos .= "<div class='small text-muted'><i class='bi bi-telephone me-1'></i>" . htmlspecialchars($row['telefono']) . "</div>";
+                                }
+                                $correo = trim((string)$row['correo']) !== ''
+                                    ? "<a href='mailto:" . htmlspecialchars($row['correo'], ENT_QUOTES) . "' class='small text-muted text-decoration-none'><i class='bi bi-envelope me-1'></i>" . htmlspecialchars($row['correo']) . "</a>"
+                                    : '';
                                 echo "<tr>
                                     <td class='text-muted small'>#{$row['id']}</td>
                                     <td>
                                         <div class='fw-bold text-dark'>{$iconoEmpresa}{$row['apellido']}, {$row['nombre']}</div>
                                     </td>
-                                    <td>
-                                        <div class='small'><i class='bi bi-telephone text-muted me-1'></i> {$row['telefono']}</div>
-                                    </td>
-                                    <td>
-                                        <div class='small text-muted'>{$row['correo']}</div>
-                                    </td>
+                                    <td>{$telefonos}</td>
+                                    <td>{$correo}</td>
                                     <td>
                                         <div class='text-truncate' style='max-width: 150px;' title='{$row['notas']}'>
                                             <small>{$row['notas']}</small>

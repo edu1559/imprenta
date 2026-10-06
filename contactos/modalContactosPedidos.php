@@ -2,12 +2,13 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../celular.php');
 $conn = conectar();
 
 $idContacto = intval($_GET['idContacto']);
 
 // 1. Buscamos datos del contacto para el título
-$resCliente = mysqli_query($conn, "SELECT apellido, nombre FROM contactos WHERE id = $idContacto");
+$resCliente = mysqli_query($conn, "SELECT apellido, nombre, celular FROM contactos WHERE id = $idContacto");
 $cliente = mysqli_fetch_assoc($resCliente);
 
 // 2. Buscamos sus pedidos
@@ -30,6 +31,12 @@ $resPedidos = mysqli_query($conn, $sql);
         <i class="bi bi-journal-text me-2"></i>
         Historial: <?php echo $cliente['apellido'] . ", " . $cliente['nombre']; ?>
     </h5>
+    <?php if ($cliente['celular']): ?>
+        <a class="btn btn-light btn-sm ms-3" target="_blank" rel="noopener" title="Escribir por WhatsApp"
+           href="<?php echo htmlspecialchars(enlaceWhatsApp($cliente['celular'], 'Hola ' . nombreSaludo($cliente['apellido'], $cliente['nombre']) . ', '), ENT_QUOTES); ?>">
+            <i class="bi bi-whatsapp text-success"></i> <?php echo mostrarCelular($cliente['celular']); ?>
+        </a>
+    <?php endif; ?>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 

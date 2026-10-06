@@ -3,7 +3,17 @@ include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorAjax();
 
     include_once(__DIR__ . '/../conexion.php');
+    include_once(__DIR__ . '/../celular.php');
 	$conn = conectar();
+
+    // Celular que se escribió en el formulario: normalizado, '' si quedó vacío,
+    // o false si no se puede interpretar como celular.
+    function celularDelFormulario() {
+        $texto = trim($_GET['celular'] ?? '');
+        if ($texto === '') return '';
+        return normalizarCelular($texto) ?? false;
+    }
+    const ERROR_CELULAR = 'No se entiende el celular. Escribilo con la característica, por ejemplo 351 532-9898.';
     
     if(isset($_GET['opcion'])){
         $opcion = $_GET['opcion'];
@@ -51,6 +61,7 @@ exigirTrabajadorAjax();
         $correo   = trim($_GET['correo'] ?? '');
         $notas    = trim($_GET['notas'] ?? '');
         $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
+        $celular  = celularDelFormulario();
 
         header('Content-Type: application/json');
 
@@ -58,23 +69,28 @@ exigirTrabajadorAjax();
             echo json_encode(['ok' => false, 'error' => 'El apellido o empresa es obligatorio.']);
             break;
         }
+        if ($celular === false) {
+            echo json_encode(['ok' => false, 'error' => ERROR_CELULAR]);
+            break;
+        }
 
-        // Duplicados: solo se compara el teléfono o el correo que se cargó (vacío no cuenta).
+        // Duplicados: solo se compara el celular, teléfono o correo que se cargó (vacío no cuenta).
         $stmtDup = $conn->prepare("SELECT apellido, nombre FROM contactos
-                                   WHERE (? <> '' AND telefono = ?) OR (? <> '' AND correo = ?) LIMIT 1");
-        $stmtDup->bind_param("ssss", $telefono, $telefono, $correo, $correo);
+                                   WHERE (? <> '' AND celular = ?) OR (? <> '' AND telefono = ?) OR (? <> '' AND correo = ?) LIMIT 1");
+        $stmtDup->bind_param("ssssss", $celular, $celular, $telefono, $telefono, $correo, $correo);
         $stmtDup->execute();
         $dup = $stmtDup->get_result()->fetch_assoc();
         $stmtDup->close();
         if ($dup) {
             $quien = trim($dup['apellido'] . ', ' . $dup['nombre'], ', ');
-            echo json_encode(['ok' => false, 'error' => "Ya existe un contacto con ese teléfono o correo: $quien. No se guardó."]);
+            echo json_encode(['ok' => false, 'error' => "Ya existe un contacto con ese celular, teléfono o correo: $quien. No se guardó."]);
             break;
         }
 
-        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, correo, notas, esEmpresa, fechacarga)
-                                   VALUES (?, ?, ?, ?, ?, ?, NOW())");
-        $stmtIns->bind_param("sssssi", $apellido, $nombre, $telefono, $correo, $notas, $esEmpresa);
+        $celular = $celular === '' ? null : $celular;
+        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, celular, correo, notas, esEmpresa, fechacarga)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmtIns->bind_param("ssssssi", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa);
         try {
             $stmtIns->execute();
             echo json_encode(['ok' => true, 'id' => $stmtIns->insert_id]);
@@ -102,33 +118,31 @@ exigirTrabajadorAjax();
                 }; 
         break;
     
-     case 'actualizarContacto':	
-		  	       
-                    $id = $_GET['id'];
-                    $apellido = urldecode($_GET['apellido']);
-                    $nombre = urldecode($_GET['nombre']);
-                    $telefono = $_GET['telefono'];
-                    $correo = $_GET['correo'];
-                    $notas = urldecode($_GET['notas']);
-                    $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
-                    
-                $sql = "update contactos set 
-                            apellido= '$apellido',
-                            nombre = '$nombre',
-                            telefono = '$telefono',
-                            correo = '$correo',
-                            notas = '$notas',
-                            esEmpresa = $esEmpresa
-                        where id = $id";
-		//echo $sql;        
-                $result = mysqli_query($conn,$sql);
-                if ($result) {
-                    echo "Se actualizo correctamene"; // Este mensaje será enviado al JavaScript
-                } else {
-                    echo "Error al actualizar contacto";
-                };
+     case 'actualizarContacto':
+        $id = (int)$_GET['id'];
+        $apellido = $_GET['apellido'] ?? '';
+        $nombre = $_GET['nombre'] ?? '';
+        $telefono = $_GET['telefono'] ?? '';
+        $correo = $_GET['correo'] ?? '';
+        $notas = $_GET['notas'] ?? '';
+        $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
+        $celular = celularDelFormulario();
 
+        if ($celular === false) {
+            echo ERROR_CELULAR;
+            break;
+        }
+        $celular = $celular === '' ? null : $celular;
 
+        $stmt = $conn->prepare("UPDATE contactos SET apellido = ?, nombre = ?, telefono = ?, celular = ?,
+                                       correo = ?, notas = ?, esEmpresa = ?
+                                WHERE id = ?");
+        $stmt->bind_param("ssssssii", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa, $id);
+        if ($stmt->execute()) {
+            echo "Se actualizo correctamene"; // Este mensaje será enviado al JavaScript
+        } else {
+            echo "Error al actualizar contacto";
+        }
        break;
 
     case 'agregarContactoInline':
@@ -138,6 +152,7 @@ exigirTrabajadorAjax();
         $nombre   = isset($_GET['nombre'])   ? trim(urldecode($_GET['nombre']))   : '';
         $telefono = isset($_GET['telefono']) ? trim($_GET['telefono']) : '';
         $correo   = isset($_GET['correo'])   ? trim($_GET['correo'])   : '';
+        $celular  = celularDelFormulario();
 
         header('Content-Type: application/json');
 
@@ -145,9 +160,14 @@ exigirTrabajadorAjax();
             echo json_encode(['ok' => false, 'error' => 'El apellido es obligatorio']);
             break;
         }
+        if ($celular === false) {
+            echo json_encode(['ok' => false, 'error' => ERROR_CELULAR]);
+            break;
+        }
+        $celular = $celular === '' ? null : $celular;
 
-        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, correo, fechacarga) VALUES (?, ?, ?, ?, NOW())");
-        $stmtIns->bind_param("ssss", $apellido, $nombre, $telefono, $correo);
+        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, celular, correo, fechacarga) VALUES (?, ?, ?, ?, ?, NOW())");
+        $stmtIns->bind_param("sssss", $apellido, $nombre, $telefono, $celular, $correo);
 
         if ($stmtIns->execute()) {
             $nuevoId = $stmtIns->insert_id;
