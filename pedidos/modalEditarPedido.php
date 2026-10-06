@@ -87,11 +87,13 @@ $esAdmin        = esAdministrador($conn);
         <div class="row mb-3">
             <div class="col-12 mb-3">
                 <label class="form-label  fw-bold">Detalle del Pedido:</label>
-                <textarea class="form-control" id="editDetalle" rows="2"><?php echo $reg['detalle']; ?></textarea>
+                <textarea class="form-control" id="editDetalle" rows="2" maxlength="1000"><?php echo $reg['detalle']; ?></textarea>
+                <div class="form-text text-end" id="editDetalleContador"></div>
             </div>
             <div class="col-12">
                 <label class="form-label  fw-bold">Observaciones Internas:</label>
-                <textarea class="form-control" id="editObservaciones" rows="2"><?php echo $reg['observaciones']; ?></textarea>
+                <textarea class="form-control" id="editObservaciones" rows="2" maxlength="255"><?php echo $reg['observaciones']; ?></textarea>
+                <div class="form-text text-end" id="editObservacionesContador"></div>
             </div>
             <div class="col-12">
                 <label class="form-label  fw-bold">Cargó:  </label>
@@ -300,4 +302,9 @@ $('#btnActualizarPedido').on('click', function() {
         $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
     });
 });
+// Contador de caracteres de los textos con límite (detalle y observaciones)
+$('#modalUniversal').off('input.contador').on('input.contador', 'textarea[maxlength]', function() {
+    $('#' + this.id + 'Contador').text(this.value.length + ' / ' + this.maxLength);
+});
+$('#modalUniversal textarea[maxlength]').trigger('input');
 </script>

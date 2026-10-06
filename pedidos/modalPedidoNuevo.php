@@ -127,11 +127,13 @@ $idTipoInicial = array_key_first($tipoPedido) ?: 1;
                 <div class="row mb-3">
                     <div class="col-md-12">
                         <label class="form-label">Detalle:</label>
-                        <textarea class="form-control" id="txtDetalle" name="detalle" rows="2"></textarea>
+                        <textarea class="form-control" id="txtDetalle" name="detalle" rows="2" maxlength="1000"></textarea>
+                        <div class="form-text text-end" id="txtDetalleContador"></div>
                     </div>
                     <div class="col-md-12">
                         <label class="form-label">Observaciones Internas:</label>
-                        <textarea class="form-control" id="txtObservaciones" name="observaciones" rows="2"></textarea>
+                        <textarea class="form-control" id="txtObservaciones" name="observaciones" rows="2" maxlength="255"></textarea>
+                        <div class="form-text text-end" id="txtObservacionesContador"></div>
                     </div>
                 </div>
 
@@ -346,10 +348,24 @@ $(document).ready(function() {
         }
 
         $.post('pedidos/ajaxPedidos.php', datos, function(res) {
+            // Con un error, el modal queda abierto para no perder lo que se escribió.
+            if (res.indexOf('alert-success') === -1) {
+                alert($('<div>').html(res).text().trim() || 'No se pudo guardar el pedido.');
+                return;
+            }
             $('#mensajes').html(res);
             $('#modalUniversal').modal('hide');
             $('#contenido').load('pedidos/pedidos.php');
+        }).fail(function() {
+            alert('No se pudo guardar el pedido (error del servidor). Lo escrito sigue en el formulario.');
         });
     });
+
+    // Contador de caracteres de los textos con límite (detalle y observaciones)
+    $('#modalUniversal').off('input.contador').on('input.contador', 'textarea[maxlength]', function() {
+        $('#' + this.id + 'Contador').text(this.value.length + ' / ' + this.maxLength);
+    });
+    $('#modalUniversal textarea[maxlength]').trigger('input');
+
 });
 </script>

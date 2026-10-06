@@ -17,9 +17,25 @@ if(isset($_POST['opcion'])){
 }
 
 
+// Largo máximo de los textos del pedido (columnas pedidos.detalle y pedidos.observaciones,
+// ver sql/2026-10-06_pedidos_detalle_1000.sql). Los formularios ya los limitan.
+const LARGO_DETALLE = 1000;
+const LARGO_OBSERVACIONES = 255;
+
+function errorLargoTextos() {
+    $largo = fn($campo) => preg_match_all('/./su', (string)($_POST[$campo] ?? ''));
+    if ($largo('detalle') > LARGO_DETALLE) return "El detalle no puede tener más de " . LARGO_DETALLE . " caracteres.";
+    if ($largo('observaciones') > LARGO_OBSERVACIONES) return "Las observaciones no pueden tener más de " . LARGO_OBSERVACIONES . " caracteres.";
+    return null;
+}
+
 switch ($opcion){
 
     case 'agregarPedido':   
+        if ($error = errorLargoTextos()) {
+            echo "❌ $error";
+            break;
+        }
         
         // 1. MEJORA DE SEGURIDAD:
         // Usamos mysqli_real_escape_string para evitar que comillas o símbolos rompan la base de datos
@@ -94,6 +110,10 @@ switch ($opcion){
 
 
 	   case 'actualizarPedido':
+    if ($error = errorLargoTextos()) {
+        echo "❌ $error";
+        break;
+    }
     // Recibimos por POST
     $idPedido           = $_POST['idPedido'];
     $idContacto         = $_POST['idContacto'];
