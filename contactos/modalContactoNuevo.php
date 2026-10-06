@@ -75,29 +75,31 @@ $conn = conectarPDO();
             return;
         }
 
-        // Usamos POST para mayor seguridad y manejo de caracteres especiales
-        $.get   ('contactos/ajaxContactos.php', {
+        var boton = $(this).prop('disabled', true);
+        $.get('contactos/ajaxContactos.php', {
             opcion: 'agregarContacto',
             apellido: v_apellido,
             nombre: v_nombre,
             esEmpresa: $('#esEmpresa1').is(':checked') ? 1 : 0,
-            telefono: $('#telefono1').val(),
-            correo: $('#correo1').val(),
+            telefono: $('#telefono1').val().trim(),
+            correo: $('#correo1').val().trim(),
             notas: $('#notas1').val()
-        }, function(respuesta) {
-            // Asumimos que tu ajaxContactos.php devuelve el ID del nuevo contacto o un mensaje de éxito
+        }, function(resp) {
+            boton.prop('disabled', false);
+            if (!resp || !resp.ok) {
+                alert(resp && resp.error ? resp.error : 'No se pudo guardar el contacto.');
+                return;
+            }
             alert("Contacto guardado correctamente");
-
-            // Cerramos el modal
             $('#modalUniversal').modal('hide');
 
-            /* TIP PROFESIONAL:
-               Si este modal se abrió desde el "Nuevo Pedido",
-               podrías refrescar el select de contactos aquí para que ya aparezca el nuevo.
-            */
+            // Si la pantalla que abrió el modal tiene un listado, lo refrescamos.
             if(typeof cargarContactos === 'function') {
                 cargarContactos();
             }
+        }, 'json').fail(function() {
+            boton.prop('disabled', false);
+            alert('No se pudo guardar el contacto: el servidor no respondió bien.');
         });
     });
 </script>

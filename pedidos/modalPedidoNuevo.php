@@ -204,11 +204,13 @@ $(document).ready(function() {
             },
             processResults: function (data) {
                 // Encabezado no seleccionable con la cantidad de coincidencias
-                if (data.length && data[0].id !== 'NEW') {
-                    var total = data[0].total || data.length;
+                // (el último elemento es siempre la opción "Crear cliente nuevo")
+                var encontrados = data.filter(function(c) { return c.id !== 'NEW'; }).length;
+                if (encontrados) {
+                    var total = data[0].total || encontrados;
                     var texto = total + (total === 1 ? ' coincidencia' : ' coincidencias');
-                    if (total > data.length) {
-                        texto += ' — mostrando ' + data.length + '. Agregue el nombre para afinar (ej: "romero pam")';
+                    if (total > encontrados) {
+                        texto += ' — mostrando ' + encontrados + '. Agregue el nombre para afinar (ej: "romero pam")';
                     }
                     data.unshift({ id: 'INFO', text: texto, disabled: true });
                 }

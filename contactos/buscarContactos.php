@@ -44,9 +44,10 @@ foreach ($data as &$row) {
 }
 unset($row);
 
-// Si no encontramos a nadie, ofrecemos crear el cliente directamente desde
-// el mismo combo (lo consume pedidos/modalPedidoNuevo.php y pedidos/pedidos.php).
-if (empty($data) && $q !== '') {
+// Al final de la lista ofrecemos siempre crear el cliente desde el mismo combo
+// (lo consume pedidos/modalPedidoNuevo.php): que haya otros con el mismo apellido
+// no quiere decir que sea uno de ellos.
+if ($q !== '') {
     $data[] = [
         'id' => 'NEW',
         'text' => 'Crear cliente nuevo: "' . $q . '"',

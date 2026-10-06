@@ -41,50 +41,48 @@
 
             break;
 
-	case 'agregarContacto':	
-		  	
-                    $apellido = urldecode($_GET['apellido']);
-                    $nombre = urldecode($_GET['nombre']);
-                    $telefono = $_GET['telefono'];
-                    $correo = $_GET['correo'];
-                    $notas = urldecode($_GET['notas']);
-                    $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
+	case 'agregarContacto':
+        // Alta desde Contactos > Agregar contacto. Devuelve JSON: ok + id, o el motivo del rechazo.
+        $apellido = trim($_GET['apellido'] ?? '');
+        $nombre   = trim($_GET['nombre'] ?? '');
+        $telefono = trim($_GET['telefono'] ?? '');
+        $correo   = trim($_GET['correo'] ?? '');
+        $notas    = trim($_GET['notas'] ?? '');
+        $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
 
+        header('Content-Type: application/json');
 
+        if ($apellido === '') {
+            echo json_encode(['ok' => false, 'error' => 'El apellido o empresa es obligatorio.']);
+            break;
+        }
 
-            // Consulta para verificar duplicados por teléfono O correo
-            $sql_check = "SELECT id 
-                          FROM contactos 
-                          WHERE telefono = '$telefono' 
-                                OR correo = '$correo' 
-                               LIMIT 1";
+        // Duplicados: solo se compara el teléfono o el correo que se cargó (vacío no cuenta).
+        $stmtDup = $conn->prepare("SELECT apellido, nombre FROM contactos
+                                   WHERE (? <> '' AND telefono = ?) OR (? <> '' AND correo = ?) LIMIT 1");
+        $stmtDup->bind_param("ssss", $telefono, $telefono, $correo, $correo);
+        $stmtDup->execute();
+        $dup = $stmtDup->get_result()->fetch_assoc();
+        $stmtDup->close();
+        if ($dup) {
+            $quien = trim($dup['apellido'] . ', ' . $dup['nombre'], ', ');
+            echo json_encode(['ok' => false, 'error' => "Ya existe un contacto con ese teléfono o correo: $quien. No se guardó."]);
+            break;
+        }
 
-            // ¡IMPORTANTE! Asumo que tienes una conexión a la base de datos llamada $conn
-            $result_check = mysqli_query($conn, $sql_check);
+        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, correo, notas, esEmpresa, fechacarga)
+                                   VALUES (?, ?, ?, ?, ?, ?, NOW())");
+        $stmtIns->bind_param("sssssi", $apellido, $nombre, $telefono, $correo, $notas, $esEmpresa);
+        try {
+            $stmtIns->execute();
+            echo json_encode(['ok' => true, 'id' => $stmtIns->insert_id]);
+        } catch (mysqli_sql_exception $e) {
+            echo json_encode(['ok' => false, 'error' => 'No pudo cargarse: ' . $e->getMessage()]);
+        }
+        $stmtIns->close();
 
-            if (mysqli_num_rows($result_check) > 0) {
-                // Si se encuentra un registro, hay un duplicado.
-                echo '<div class="alert alert-warning" role="alert">
-                          <strong>Error:</strong> Ya existe un contacto con este Teléfono o Correo electrónico. No se ha guardado.
-                      </div>';
-                // Puedes salir del case aquí para no intentar la inserción
-                break;
-            }
-                 
-                $sql = "insert into contactos (apellido,nombre,telefono,correo,notas,esEmpresa)
-                        values ('$apellido','$nombre','$telefono','$correo','$notas',$esEmpresa)";
-				echo $sql;
-                $result = mysqli_query($conn,$sql);
-		
-                if($result){
-                   echo 'Se cargó con éxito';    
-                }else{
-                    echo 'No pudo cargarse';
-                }; 
-			
-    
        break;
-       
+
        case 'borraContacto':
         
             
@@ -160,4 +158,4 @@
     break;
 
     };
-};
+};
