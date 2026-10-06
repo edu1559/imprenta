@@ -115,9 +115,17 @@ $('#guardarDatos').click(function() {
         alert("Complete todos los campos de la cuenta.");
         return;
     }
+    if (datos.clave.length < <?php echo LARGO_MINIMO_CLAVE; ?>) {
+        alert("La clave tiene que tener al menos <?php echo LARGO_MINIMO_CLAVE; ?> caracteres.");
+        return;
+    }
 
     // Enviamos por POST para que la clave no viaje en la URL (más seguro)
     $.post('contactos/ajaxUsuarios.php', datos, function(response) {
+        if (!response.includes('éxito')) {
+            alert(response);
+            return;
+        }
         $('#modalUsuario').modal('hide');
         $('#contenido').load('contactos/usuarios.php'); // Recargar lista
         // Aquí podrías disparar un mensaje de éxito

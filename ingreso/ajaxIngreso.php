@@ -14,19 +14,34 @@ case 'ingreso':
     $usuario = $_POST['usuario'] ?? '';
     $clave = $_POST['clave'] ?? '';
 
-    // Buscamos el usuario y su perfil (asumiendo que agregaste idPerfil a la tabla usuarios)
-    $sql = "SELECT u.id, u.idPerfil, c.apellido, c.nombre
+    // Buscamos el usuario y su perfil; la clave se comprueba contra el hash guardado.
+    $sql = "SELECT u.id, u.idPerfil, u.clave, c.apellido, c.nombre
             FROM usuarios u
             INNER JOIN contactos c ON u.id = c.id
-            WHERE u.usuario = :usuario AND u.clave = :clave";
+            WHERE u.usuario = :usuario";
 
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':usuario', $usuario, PDO::PARAM_STR);
-    $stmt->bindParam(':clave', $clave, PDO::PARAM_STR);
     $stmt->execute();
 
-    if ($stmt->rowCount() == 1) {
-        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+    $fila = null;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $candidato) {
+        $guardada = (string)$candidato['clave'];
+        $cifrada = password_get_info($guardada)['algo'] !== null;
+        // Una clave que todavía está sin cifrar (anterior a sql/2026-10-06_usuarios_cifrarClaves.php)
+        // se compara tal cual y, si coincide, se cifra en ese momento.
+        if ($cifrada ? password_verify($clave, $guardada) : ($clave !== '' && hash_equals($guardada, $clave))) {
+            if (!$cifrada || password_needs_rehash($guardada, PASSWORD_DEFAULT)) {
+                $conn->prepare("UPDATE usuarios SET clave = ? WHERE id = ?")
+                     ->execute([password_hash($clave, PASSWORD_DEFAULT), $candidato['id']]);
+            }
+            $fila = $candidato;
+            break;
+        }
+    }
+
+    if ($fila) {
+        session_regenerate_id(true);
 
         // Guardamos todo lo necesario en la sesión
         $_SESSION['idUsuario'] = $fila['id'];

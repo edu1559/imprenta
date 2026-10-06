@@ -116,7 +116,7 @@
             //include_once ('conexion.php');
  
 
-            $sql = "select u.id,concat(c.apellido,' ',c.nombre), u.usuario, u.clave, p.perfil,c.id, u.idPerfil, u.puedeModificar
+            $sql = "select u.id,concat(c.apellido,' ',c.nombre), u.usuario, '••••' AS clave, p.perfil,c.id, u.idPerfil, u.puedeModificar
                     from contactos c inner join usuarios u 
                         on u.id = c.id
                     inner join perfiles p 

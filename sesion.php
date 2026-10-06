@@ -11,6 +11,16 @@ const ID_PERFIL_VISITANTE = 2;
 const PAGINAS_PUBLICAS = ['ingreso/bienvenida.php', 'ingreso/ingreso.php', 'ingreso/contactenos.php',
                           'contactenos.php', 'productos/productos.php', 'productos/imagenesProductos.php'];
 
+// Las claves se guardan con password_hash() y se comprueban con password_verify()
+// (ingreso/ajaxIngreso.php). Las nuevas tienen que tener al menos este largo.
+const LARGO_MINIMO_CLAVE = 6;
+
+function errorClaveNueva($clave) {
+    return preg_match_all('/./su', $clave) < LARGO_MINIMO_CLAVE   // caracteres, no bytes (sin depender de mbstring)
+        ? "La clave tiene que tener al menos " . LARGO_MINIMO_CLAVE . " caracteres."
+        : null;
+}
+
 function usuarioLogueado() {
     $id = (int)($_SESSION['idUsuario'] ?? 0);
     $perfil = (int)($_SESSION['idPerfil'] ?? ID_PERFIL_VISITANTE);

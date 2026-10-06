@@ -7,6 +7,12 @@
     $opcion = $_GET['opcion'] ?? $_POST['opcion'] ?? '';
    // echo $opcion;
   
+    // Alta y edición de usuarios (y sus claves, que van cifradas) se hacen desde
+    // Contactos → Usuarios (contactos/ajaxUsuarios.php). Acá quedan borrar y el permiso.
+    if (in_array($opcion, ['agregarUsuario', 'actualizarUsuario'])) {
+        exit("Los usuarios y sus claves se cargan desde Contactos → Usuarios.");
+    }
+
     switch ($opcion){
 
 	case 'agregarUsuario':	

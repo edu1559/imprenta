@@ -47,15 +47,21 @@ switch ($opcion) {
     case 'agregarUsuario':
         // El ID del contacto que elegimos en el buscador es el ID del nuevo usuario
         $id = intval($_REQUEST['idContacto']);
-        $usuario = mysqli_real_escape_string($conn, $_REQUEST['usuario']);
-        $clave = mysqli_real_escape_string($conn, $_REQUEST['clave']);
+        $usuario = $_REQUEST['usuario'];
+        $clave = $_REQUEST['clave'];
         $idPerfil = intval($_REQUEST['idPerfil']);
 
-        // Insertamos el usuario
-        $sqlUser = "INSERT INTO usuarios (id, usuario, clave, idPerfil)
-                    VALUES ($id, '$usuario', '$clave', $idPerfil)";
+        if ($error = errorClaveNueva($clave)) {
+            echo $error;
+            break;
+        }
 
-        if (mysqli_query($conn, $sqlUser)) {
+        // Insertamos el usuario (la clave va cifrada, ver sesion.php)
+        $hash = password_hash($clave, PASSWORD_DEFAULT);
+        $stmt = $conn->prepare("INSERT INTO usuarios (id, usuario, clave, idPerfil) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param('issi', $id, $usuario, $hash, $idPerfil);
+
+        if ($stmt->execute()) {
             // Al crear el usuario, le heredamos los permisos del perfil elegido
             $sqlPermisos = "INSERT INTO permisos (idUsuario, idMenu)
                             SELECT $id, idMenu
@@ -64,7 +70,7 @@ switch ($opcion) {
             mysqli_query($conn, $sqlPermisos);
             echo "Usuario y permisos creados con éxito.";
         } else {
-            echo "Error al crear usuario: " . mysqli_error($conn);
+            echo "Error al crear usuario: " . $stmt->error;
         }
         break;
 
@@ -74,6 +80,10 @@ switch ($opcion) {
     $user = $_POST['usuario'];
     $perfil = intval($_POST['idPerfil']);
     $clave = $_POST['clave'];
+
+    if ($clave !== '' && ($error = errorClaveNueva($clave))) {
+        die($error);
+    }
 
     // 1. Manejo de la FOTO: fotoUsuarios/Apellido-Nombre.jpg, el mismo nombre que arma
     // ingreso/ajaxIngreso.php para la barra del menú. La foto anterior no se pisa: queda
@@ -100,8 +110,9 @@ switch ($opcion) {
 
     // 2. Actualización de datos en DB. La clave solo cambia si se escribió una nueva.
     if ($clave !== '') {
+        $hash = password_hash($clave, PASSWORD_DEFAULT);
         $stmt = $conn->prepare("UPDATE usuarios SET usuario = ?, idPerfil = ?, clave = ? WHERE id = ?");
-        $stmt->bind_param('sisi', $user, $perfil, $clave, $id);
+        $stmt->bind_param('sisi', $user, $perfil, $hash, $id);
     } else {
         $stmt = $conn->prepare("UPDATE usuarios SET usuario = ?, idPerfil = ? WHERE id = ?");
         $stmt->bind_param('sii', $user, $perfil, $id);

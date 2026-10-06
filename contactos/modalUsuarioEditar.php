@@ -132,6 +132,11 @@ $('#btnActualizar').click(function() {
         alert("El nombre de usuario no puede estar vacío.");
         return;
     }
+    let clave = $('#passEdit').val();
+    if (clave !== '' && clave.length < <?php echo LARGO_MINIMO_CLAVE; ?>) {
+        alert("La clave tiene que tener al menos <?php echo LARGO_MINIMO_CLAVE; ?> caracteres.");
+        return;
+    }
     if ($('#fotoEdit').val() && !fotoNueva) {
         alert("La foto todavía se está preparando, probá de nuevo en un segundo.");
         return;
