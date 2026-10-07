@@ -44,6 +44,17 @@ function pedidoCerrado($pedido) {
         && (int)$pedido['estadoPago'] === 3;
 }
 
+// Mantiene pedidos.fechaTerminado al día con estadoProduccion: se llama después de
+// cada cambio de estado. La fecha es la de la primera vez que quedó terminado y se
+// borra si el pedido vuelve a estar sin terminar.
+function marcarFechaTerminado($conn, $idPedido) {
+    $stmt = $conn->prepare("UPDATE pedidos
+                            SET fechaTerminado = IF(estadoProduccion = 3, COALESCE(fechaTerminado, NOW()), NULL)
+                            WHERE id = ?");
+    $stmt->bind_param('i', $idPedido);
+    return $stmt->execute();
+}
+
 // Un pago queda "en caja cerrada" si es anterior al último cierre de su medio.
 function pagoEnCajaCerrada($conn, $idPago) {
     $stmt = $conn->prepare("SELECT p.fecha < cm.fechaUC AS cerrado

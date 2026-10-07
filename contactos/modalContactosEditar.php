@@ -13,7 +13,7 @@ if (isset($_GET['idContacto']) && is_numeric($_GET['idContacto'])) {
 }
 
 /* Busco los datos del contacto */
-$sql = "select id, apellido, nombre, telefono, celular, correo, tipoFactura, cuit, notas, esEmpresa
+$sql = "select id, apellido, nombre, telefono, celular, correo, tipoFactura, cuit, notas, esEmpresa, esTercerizado
         from contactos
         where id = :idContacto ";
 
@@ -38,6 +38,7 @@ $tipoFactura = $myrow["tipoFactura"];
 $cuit = $myrow["cuit"];
 $notas = $myrow["notas"];
 $esEmpresa = $myrow["esEmpresa"];
+$esTercerizado = $myrow["esTercerizado"];
 
 ?>
 
@@ -63,6 +64,11 @@ $esEmpresa = $myrow["esEmpresa"];
             <div class="form-check mb-3">
                 <input type="checkbox" class="form-check-input" id="esEmpresa1" <?php echo $esEmpresa ? 'checked' : ''; ?>>
                 <label class="form-check-label" for="esEmpresa1">Es una empresa o institución (el nombre es la persona de contacto)</label>
+            </div>
+
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="esTercerizado1" <?php echo $esTercerizado ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="esTercerizado1">Es un proveedor al que le mandamos trabajos (aparece en Producción &gt; Tercerizados)</label>
             </div>
 
             <div class="row mb-3">
@@ -106,6 +112,7 @@ $esEmpresa = $myrow["esEmpresa"];
             apellido: $('#apellido1').val(),
             nombre: $('#nombre1').val(),
             esEmpresa: $('#esEmpresa1').is(':checked') ? 1 : 0,
+            esTercerizado: $('#esTercerizado1').is(':checked') ? 1 : 0,
             celular: $('#celular1').val().trim(),
             telefono: $('#telefono1').val(),
             correo: $('#correo1').val(),

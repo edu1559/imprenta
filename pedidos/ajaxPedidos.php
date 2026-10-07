@@ -80,6 +80,7 @@ switch ($opcion){
             // 2. CORRECCIÓN DE TIPEO:
             // Antes decías $ulitimo_id_pedido (con una i extra)
             $ultimo_id_pedido = mysqli_insert_id($conn);
+            marcarFechaTerminado($conn, $ultimo_id_pedido);
             
             // 3. LÓGICA DE PAGOS UNIFICADA:
             // Solo insertamos en la tabla pagos SI hay dinero de por medio.
@@ -157,6 +158,7 @@ switch ($opcion){
     $result = mysqli_query($conn, $sql);
 
     if ($result) {
+        marcarFechaTerminado($conn, $idPedidoInt);
         if (abs((float)$actual['monto'] - $monto) > 0.01) {
             registrarModificacion($conn, 'pedido', $idPedidoInt, $idPedidoInt, 'modificarMonto', $actual['monto'], $monto, 'Editar pedido');
         }
@@ -202,7 +204,9 @@ case 'cerrarPedido':
         $stmt = $conn->prepare("UPDATE pedidos SET estadoEntrega = 3, estadoProduccion = 3, estadoPago = 3,
                                     montoPagado = GREATEST(montoPagado, monto) WHERE id = ?");
         $stmt->bind_param('i', $actual['id']);
-        echo $stmt->execute() ? "✅ Pedido cerrado (el saldo quedó como pago sin registro)." : "❌ Error al cerrar pedido.";
+        $cerro = $stmt->execute();
+        marcarFechaTerminado($conn, $actual['id']);
+        echo $cerro ? "✅ Pedido cerrado (el saldo quedó como pago sin registro)." : "❌ Error al cerrar pedido.";
         break;
     }
 
@@ -235,6 +239,7 @@ case 'cerrarPedido':
                   WHERE id = $id";
     
     if (mysqli_query($conn, $sqlCerrar)) {
+        marcarFechaTerminado($conn, (int)$id);
         echo "✅ Pedido cerrado y pagado.";
     } else {
         echo "❌ Error al cerrar pedido.";
@@ -265,6 +270,7 @@ case 'modificarEstado':
     $sql = "UPDATE pedidos SET $columna = $nuevoEstado WHERE id = $idPedido";
     
     if(mysqli_query($conn, $sql)) {
+        marcarFechaTerminado($conn, (int)$idPedido);
         echo "Estado actualizado";
     } else {
         echo "Error: " . mysqli_error($conn);

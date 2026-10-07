@@ -126,6 +126,7 @@ exigirTrabajadorAjax();
         $correo = $_GET['correo'] ?? '';
         $notas = $_GET['notas'] ?? '';
         $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
+        $esTercerizado = empty($_GET['esTercerizado']) ? 0 : 1;
         $celular = celularDelFormulario();
 
         if ($celular === false) {
@@ -135,9 +136,9 @@ exigirTrabajadorAjax();
         $celular = $celular === '' ? null : $celular;
 
         $stmt = $conn->prepare("UPDATE contactos SET apellido = ?, nombre = ?, telefono = ?, celular = ?,
-                                       correo = ?, notas = ?, esEmpresa = ?
+                                       correo = ?, notas = ?, esEmpresa = ?, esTercerizado = ?
                                 WHERE id = ?");
-        $stmt->bind_param("ssssssii", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa, $id);
+        $stmt->bind_param("ssssssiii", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa, $esTercerizado, $id);
         if ($stmt->execute()) {
             echo "Se actualizo correctamene"; // Este mensaje será enviado al JavaScript
         } else {
