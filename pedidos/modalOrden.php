@@ -38,6 +38,11 @@ $myrow = mysqli_fetch_assoc($result);
 
 $apellido = $myrow['apellido'];
 $nombre   = $myrow['nombre'];
+
+// Quien cargó el pedido: cada usuario es un contacto con el mismo id.
+$sql = "SELECT trim(coalesce(nombre, '')) as recibio
+        FROM contactos WHERE id = " . (int)$idUsuario;
+$recibio = mysqli_fetch_assoc(mysqli_query($conn, $sql))['recibio'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -129,7 +134,7 @@ $nombre   = $myrow['nombre'];
                 <div class="col-6">
                     <table class="table table-sm table-bordered">
                         <tr><th class="table-light">Prometido</th><td><?php echo $prometido;?></td></tr>
-                        <tr><th class="table-light">Recibió</th><td>Usuario <?php echo $idUsuario;?></td></tr>
+                        <tr><th class="table-light">Recibió</th><td><?php echo htmlspecialchars($recibio);?></td></tr>
                     </table>
                 </div>
                 <div class="col-6">
@@ -170,7 +175,7 @@ $nombre   = $myrow['nombre'];
                 <div class="col-6">
                     <table class="table table-sm table-bordered">
                         <tr><th class="table-light">Prometido</th><td><?php echo $prometido;?></td></tr>
-                        <tr><th class="table-light">Recibió</th><td>Usuario <?php echo $idUsuario;?></td></tr>
+                        <tr><th class="table-light">Recibió</th><td><?php echo htmlspecialchars($recibio);?></td></tr>
                     </table>
                 </div>
                 <div class="col-6">
