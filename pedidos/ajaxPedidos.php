@@ -61,7 +61,16 @@ switch ($opcion){
         if($idEstadoPago == 3){
             $montoPagado = $monto;
         }
-        
+        if ((float)$montoPagado > (float)$monto + 0.1) {
+            echo "❌ Lo pagado ($$montoPagado) no puede ser mayor que el monto del pedido ($$monto).";
+            break;
+        }
+        // El estado de pago sale de lo pagado, no del formulario (como al editar).
+        // Sin monto todavía (presupuesto a cotizar) se respeta lo elegido.
+        if ((float)$monto > 0) {
+            $idEstadoPago = calcularEstadoPago((float)$monto, (float)$montoPagado);
+        }
+
         // Insertamos el PEDIDO
         $sql = "INSERT INTO pedidos (idContacto, idTipoPedido, idOrigen, detalle, observaciones, entrada, estadoEntrega, estadoProduccion, estadoPago, prometido, montoPagado, monto, idMedioPago, idUsuario)          
                 VALUES ($idContacto, $idTipoPedido, $idOrigen, '$detalle', '$observaciones', NOW(), $idEstadoEntrega, $idEstadoProduccion, $idEstadoPago, '$prometido', '$montoPagado', '$monto', $idMedioPago, $idUsuario)";
