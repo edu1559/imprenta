@@ -35,6 +35,15 @@ if ($hayTabla) {
     $pend = $conn->query("SELECT (SELECT COUNT(*) FROM pedidos p JOIN contactosFusionados f ON f.id = p.idContacto $falta)
                                + (SELECT COUNT(*) FROM papeles p JOIN contactosFusionados f ON f.id = p.idProveedor $falta)")->fetch_row()[0];
     echo "Pedidos/papeles que apuntan a contactos ya fusionados: $pend\n";
+    // fusiones hechas antes de que se copiara el celular: se recupera del fusionado
+    if ($conn->query("SHOW COLUMNS FROM contactosFusionados LIKE 'celular'")->num_rows) {
+        $sinCel = "FROM contactos c JOIN contactosFusionados f ON f.idNuevo = c.id
+                   WHERE TRIM(COALESCE(c.celular, '')) = '' AND TRIM(COALESCE(f.celular, '')) <> ''";
+        echo "Celulares a recuperar de contactos ya fusionados: ",
+            $conn->query("SELECT COUNT(DISTINCT c.id) $sinCel")->fetch_row()[0], "\n";
+        if ($aplicar) $conn->query("UPDATE contactos c JOIN contactosFusionados f ON f.idNuevo = c.id SET c.celular = f.celular
+                                    WHERE TRIM(COALESCE(c.celular, '')) = '' AND TRIM(COALESCE(f.celular, '')) <> ''");
+    }
     if ($aplicar && $pend) {
         $conn->query("UPDATE pedidos p JOIN contactosFusionados f ON f.id = p.idContacto LEFT JOIN contactos c ON c.id = f.id
                       SET p.idContacto = f.idNuevo WHERE c.id IS NULL");
@@ -132,8 +141,11 @@ foreach ($fusiones as $queda => $seVan) {
             $set['apellido'] = $q['apellido'] = $d['apellido'];
             $set['nombre']   = $q['nombre']   = $d['nombre'];
         }
-        foreach (['telefono', 'correo', 'cuit', 'notas'] as $campo) {
-            if (vacio($q[$campo]) && !vacio($d[$campo])) $set[$campo] = $q[$campo] = $d[$campo];
+        foreach (['telefono', 'celular', 'correo', 'cuit', 'notas'] as $campo) {
+            if (array_key_exists($campo, $q) && vacio($q[$campo]) && !vacio($d[$campo])) $set[$campo] = $q[$campo] = $d[$campo];
+        }
+        foreach (['esEmpresa', 'esTercerizado'] as $campo) {
+            if (array_key_exists($campo, $q) && !$q[$campo] && $d[$campo]) $set[$campo] = $q[$campo] = 1;
         }
         if ($d['fechacarga'] && (!$q['fechacarga'] || $d['fechacarga'] < $q['fechacarga'])) {
             $set['fechacarga'] = $q['fechacarga'] = $d['fechacarga'];
