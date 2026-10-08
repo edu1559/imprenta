@@ -14,6 +14,7 @@ $hayFusion = $conn->query("SHOW TABLES LIKE 'contactosFusionados'")->num_rows > 
 $vacio = fn($campo) => "TRIM(COALESCE(c.$campo, '')) = ''";
 $donde = "NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.idContacto = c.id)
       AND NOT EXISTS (SELECT 1 FROM papeles pa WHERE pa.idProveedor = c.id)
+      AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id = c.id)
       AND {$vacio('telefono')} AND {$vacio('correo')} AND {$vacio('cuit')} AND {$vacio('notas')}
       AND COALESCE(c.tipo, 0) <> 2
       AND c.id <> 1 AND LOWER(TRIM(COALESCE(c.apellido, ''))) NOT REGEXP '^aa( |$)'"

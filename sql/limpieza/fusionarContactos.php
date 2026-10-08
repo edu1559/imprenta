@@ -61,8 +61,13 @@ while ($c = $r->fetch_assoc()) {
 $fusiones = [];   // [idQueQueda => [idsQueSeVan]]
 $motivo = [];     // [idQueQueda => por qué se fusiona]
 $aRevisar = 0;
-$elegir = function ($lista) use (&$C, &$fusiones, &$motivo) {
-    usort($lista, fn($a, $b) => $C[$b]['pedidos'] <=> $C[$a]['pedidos'] ?: $a <=> $b);
+// usuarios.id es el id de su contacto: un contacto que es usuario siempre queda,
+// y si en el grupo hay dos usuarios no se fusiona (va a revisión manual)
+$esUsuario = array_flip(array_column($conn->query("SELECT id FROM usuarios")->fetch_all(), 0));
+$elegir = function ($lista) use (&$C, &$fusiones, &$motivo, &$aRevisar, $esUsuario) {
+    if (count(array_intersect_key(array_flip($lista), $esUsuario)) > 1) { $aRevisar++; return null; }
+    usort($lista, fn($a, $b) => isset($esUsuario[$b]) <=> isset($esUsuario[$a])
+                             ?: $C[$b]['pedidos'] <=> $C[$a]['pedidos'] ?: $a <=> $b);
     $queda = array_shift($lista);
     $fusiones[$queda] = $lista;
     return $queda;
@@ -89,13 +94,13 @@ foreach ($porNombre as $nombre => $ids) {
         // subgrupos que tienen algún teléfono, CUIT o correo: si hay más de uno, los datos difieren
         $subConDatos = count(array_unique(array_map($raiz, $conDatos)));
         if ($subConDatos <= 1 && substr_count($nombre, ' ') >= 1) {
-            $motivo[$elegir($ids)] = 'mismo nombre';
+            if ($q = $elegir($ids)) $motivo[$q] = 'mismo nombre';
             continue;
         }
         $aRevisar++;
     }
     foreach ($sub as $lista) {
-        if (count($lista) > 1) $motivo[$elegir($lista)] = 'mismo nombre y dato';
+        if (count($lista) > 1 && ($q = $elegir($lista))) $motivo[$q] = 'mismo nombre y dato';
     }
 }
 
