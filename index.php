@@ -167,9 +167,9 @@ $(document).ready(function() {
 
 <script>
 
-    // Debe ser MENOR que session.gc_maxlifetime de PHP (8 h = 28800 s): si PHP
+    // Debe ser MENOR que session.gc_maxlifetime de PHP (6 h = 21600 s): si PHP
     // borra la sesión antes de este aviso, la página parece logueada sin estarlo.
-    let tiempoInactividad = 450 * 60 * 1000; // 7 h 30 min en milisegundos
+    let tiempoInactividad = 350 * 60 * 1000; // 5 h 50 min en milisegundos
     let timeoutSesion;
 
     function reiniciarContador() {
