@@ -169,25 +169,28 @@ switch ($opcion){
     break;
 
 case 'cerrarPedido':
-    // También cambiamos a POST para mantener consistencia
-    $id      = $_POST['idPedido'];
-    $monto   = $_POST['monto'];
-    $montoPagado = $_POST['montoPagado'];
-    $idMedio = $_POST['idMedio'];
+    // Los montos salen de la base, no de la página: si el pedido llega dos veces
+    // (doble clic, o dos pantallas), el segundo ya no tiene saldo y no carga otro pago.
+    $id      = (int)$_POST['idPedido'];
+    $idMedio = (int)$_POST['idMedio'];
 
-    $actual = cargarPedido($conn, (int)$id);
+    mysqli_begin_transaction($conn);
+    // bloquea el pedido hasta terminar, así dos cierres simultáneos no leen el mismo saldo
+    mysqli_query($conn, "SELECT id FROM pedidos WHERE id = $id FOR UPDATE");
+    $actual = cargarPedido($conn, $id);
     if (!$actual || $actual['anulado']) {
+        mysqli_rollback($conn);
         echo "❌ El pedido está anulado.";
         break;
     }
-    
+    $saldo = round($actual['monto'] - $actual['montoPagado'], 2);
 
     // "Ya estaba cobrado": el saldo se cobró en su momento pero no se registró. Va como
     // pago sinRegistro con la fecha del pedido, así no suma a la caja de hoy.
     if (!empty($_POST['sinRegistro'])) {
-        $saldo = round($actual['monto'] - $actual['montoPagado'], 2);
         $idSinRegistro = mysqli_fetch_row(mysqli_query($conn, "SELECT id FROM mediosPago WHERE medio = 'sinRegistro'"))[0] ?? null;
         if (!$idSinRegistro) {
+            mysqli_rollback($conn);
             echo "❌ Falta el medio de pago 'sinRegistro'.";
             break;
         }
@@ -206,42 +209,28 @@ case 'cerrarPedido':
         $stmt->bind_param('i', $actual['id']);
         $cerro = $stmt->execute();
         marcarFechaTerminado($conn, $actual['id']);
+        mysqli_commit($conn);
         echo $cerro ? "✅ Pedido cerrado (el saldo quedó como pago sin registro)." : "❌ Error al cerrar pedido.";
         break;
     }
 
-     //   calculo el pago
-
-        if  (abs($monto-$montoPagado)>0.1){
-
-            $pagoActual = $monto - $montoPagado;
-
-            $sqlPago = "insert into pagos
-                        (fecha,idPedido,monto,idMedioPago,idUsuario)
-                        values (now(),$id,$pagoActual,$idMedio,$idUsuario)";
-                if (mysqli_query($conn, $sqlPago)) {
-                        echo "✅ Pago Cargado.";
-                } else {
-                        echo "❌ Error.";
-                };
-        };
-
-   
-
+    // "Cobrado ahora": el saldo entra hoy con el medio elegido
+    if ($saldo > 0.1) {
+        $stmt = $conn->prepare("INSERT INTO pagos (fecha, idPedido, monto, idMedioPago, idUsuario) VALUES (NOW(), ?, ?, ?, ?)");
+        $stmt->bind_param('idii', $id, $saldo, $idMedio, $idUsuario);
+        echo $stmt->execute() ? "✅ Pago Cargado." : "❌ Error.";
+    }
 
     // Al cerrar, asumimos que el pago se completa
-    $sqlCerrar = "UPDATE pedidos SET 
-                    estadoEntrega = 3,
-                    estadoProduccion = 3,
-                    estadoPago = 3,
-                    montoPagado = '$monto',
-                    idMedioPago = $idMedio
-                  WHERE id = $id";
-    
-    if (mysqli_query($conn, $sqlCerrar)) {
-        marcarFechaTerminado($conn, (int)$id);
+    $stmt = $conn->prepare("UPDATE pedidos SET estadoEntrega = 3, estadoProduccion = 3, estadoPago = 3,
+                                montoPagado = GREATEST(montoPagado, monto), idMedioPago = ? WHERE id = ?");
+    $stmt->bind_param('ii', $idMedio, $id);
+    if ($stmt->execute()) {
+        marcarFechaTerminado($conn, $id);
+        mysqli_commit($conn);
         echo "✅ Pedido cerrado y pagado.";
     } else {
+        mysqli_rollback($conn);
         echo "❌ Error al cerrar pedido.";
     };
     break;

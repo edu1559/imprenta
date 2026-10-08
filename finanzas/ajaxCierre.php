@@ -251,6 +251,16 @@ switch ($opcion) {
             break;
         }
 
+        // el mismo pago dos veces en pocos segundos es un doble envío, no un segundo pago
+        $repetido = $conn->prepare("SELECT 1 FROM pagos WHERE idPedido = ? AND monto = ? AND idMedioPago = ?
+                                    AND fecha >= NOW() - INTERVAL 10 SECOND");
+        $repetido->bind_param('idi', $idPedido, $monto, $idMedioPago);
+        $repetido->execute();
+        if ($repetido->get_result()->num_rows) {
+            echo "✅ Ese pago ya estaba registrado.";
+            break;
+        }
+
         $sqlPago = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
         $sqlPago->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
 
