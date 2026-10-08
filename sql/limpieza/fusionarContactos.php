@@ -9,6 +9,13 @@
 //   php sql/limpieza/fusionarContactos.php                 solo muestra lo que haría
 //   php sql/limpieza/fusionarContactos.php --aplicar       modifica la base
 //   php sql/limpieza/fusionarContactos.php --mismoNombre [--aplicar]
+//   php sql/limpieza/fusionarContactos.php --revisados=planilla.csv [--aplicar]
+//
+// --mismoNombre deja los grupos dudosos en sql/limpieza/duplicados_a_revisar.csv.
+// --revisados fusiona los grupos de una planilla así, ya revisada a mano (columnas
+// grupo e id; los ids que ya no existen se saltean). En esos grupos, si teléfono,
+// celular, correo o CUIT difieren, queda el del contacto más reciente (último
+// pedido; sin pedidos, el cargado después) y las notas se juntan.
 //
 // Sin --aplicar deja el detalle en sql/limpieza/fusion_propuesta.csv.
 // De cada grupo queda el contacto con más pedidos (a igualdad, el más viejo).
@@ -18,6 +25,9 @@
 // la próxima corrida los reasigna.
 require __DIR__ . '/comun.php';
 $mismoNombre = in_array('--mismoNombre', $argv, true);
+$revisados = null;
+foreach ($argv as $a) if (strpos($a, '--revisados=') === 0) $revisados = substr($a, 12);
+if ($revisados && !is_readable($revisados)) exit("No se puede leer $revisados\n");
 
 // --- tabla de fusiones y reasignación de lo que haya quedado apuntando a un fusionado
 if ($aplicar) {
@@ -69,19 +79,19 @@ while ($c = $r->fetch_assoc()) {
 
 $fusiones = [];   // [idQueQueda => [idsQueSeVan]]
 $motivo = [];     // [idQueQueda => por qué se fusiona]
-$aRevisar = 0;
+$revisar = [];   // grupos de mismo nombre que no se fusionan solos: [[ids]]
 // usuarios.id es el id de su contacto: un contacto que es usuario siempre queda,
 // y si en el grupo hay dos usuarios no se fusiona (va a revisión manual)
 $esUsuario = array_flip(array_column($conn->query("SELECT id FROM usuarios")->fetch_all(), 0));
-$elegir = function ($lista) use (&$C, &$fusiones, &$motivo, &$aRevisar, $esUsuario) {
-    if (count(array_intersect_key(array_flip($lista), $esUsuario)) > 1) { $aRevisar++; return null; }
+$elegir = function ($lista) use (&$C, &$fusiones, &$motivo, &$revisar, $esUsuario) {
+    if (count(array_intersect_key(array_flip($lista), $esUsuario)) > 1) { $revisar[] = $lista; return null; }
     usort($lista, fn($a, $b) => isset($esUsuario[$b]) <=> isset($esUsuario[$a])
                              ?: $C[$b]['pedidos'] <=> $C[$a]['pedidos'] ?: $a <=> $b);
     $queda = array_shift($lista);
     $fusiones[$queda] = $lista;
     return $queda;
 };
-foreach ($porNombre as $nombre => $ids) {
+foreach ($revisados ? [] : $porNombre as $nombre => $ids) {
     if (count($ids) < 2) continue;
     // dentro del mismo nombre, se unen los que comparten teléfono, CUIT o correo
     $padre = array_combine($ids, $ids);
@@ -106,10 +116,24 @@ foreach ($porNombre as $nombre => $ids) {
             if ($q = $elegir($ids)) $motivo[$q] = 'mismo nombre';
             continue;
         }
-        $aRevisar++;
+        $revisar[] = $ids;
     }
     foreach ($sub as $lista) {
         if (count($lista) > 1 && ($q = $elegir($lista))) $motivo[$q] = 'mismo nombre y dato';
+    }
+}
+if ($revisados) {
+    $f = fopen($revisados, 'r');
+    $enc = fgetcsv($f, 0, ';');
+    $enc[0] = preg_replace('/^\xEF\xBB\xBF/', '', $enc[0]);
+    $grupos = [];
+    while (($linea = fgetcsv($f, 0, ';')) !== false) {
+        if (count($linea) < count($enc)) continue;
+        $x = array_combine($enc, $linea);
+        if (isset($C[$x['id']])) $grupos[$x['grupo']][] = (int)$x['id'];
+    }
+    foreach ($grupos as $ids) {
+        if (count($ids) > 1 && ($q = $elegir($ids))) $motivo[$q] = 'revisado a mano';
     }
 }
 
@@ -134,6 +158,21 @@ foreach ($fusiones as $queda => $seVan) {
         foreach ($seVan as $id) fputcsv($csv, $fila($nGrupo, $motivo[$queda], "se une a $queda", $C[$id]), ';');
     }
     $set = [];
+    if ($revisados) {
+        // datos que difieren: queda el del contacto más reciente
+        $grupo = array_merge([$queda], $seVan);
+        usort($grupo, fn($a, $b) => [(string)$C[$b]['ultimo'], $b] <=> [(string)$C[$a]['ultimo'], $a]);
+        foreach (['telefono', 'celular', 'correo', 'cuit'] as $campo) {
+            if (!array_key_exists($campo, $q)) continue;
+            foreach ($grupo as $id) {
+                if (vacio($C[$id][$campo])) continue;
+                if ($C[$id][$campo] !== $q[$campo]) $set[$campo] = $q[$campo] = $C[$id][$campo];
+                break;
+            }
+        }
+        $notas = array_unique(array_filter(array_map(fn($id) => trim((string)$C[$id]['notas']), $grupo), 'strlen'));
+        if (implode(' / ', $notas) !== trim((string)$q['notas'])) $set['notas'] = $q['notas'] = implode(' / ', $notas);
+    }
     foreach ($seVan as $id) {
         $d = $C[$id];
         // el nombre se toma entero del que lo tenga separado en apellido y nombre
@@ -161,6 +200,7 @@ foreach ($fusiones as $queda => $seVan) {
         $conn->query("REPLACE INTO contactosFusionados ($cols, idNuevo, fechaFusion) SELECT $cols, $queda, NOW() FROM contactos WHERE id = $id");
         $conn->query("DELETE FROM contactos WHERE id = $id");
     }
+    if ($revisados) printf("       queda: tel %s | cel %s | %s | cuit %s\n", $q['telefono'], $q['celular'] ?? '', $q['correo'], $q['cuit']);
     if ($aplicar && $set) {
         $sql = implode(', ', array_map(fn($k) => "$k = ?", array_keys($set)));
         $st = $conn->prepare("UPDATE contactos SET $sql WHERE id = $queda");
@@ -171,5 +211,30 @@ foreach ($fusiones as $queda => $seVan) {
 $conn->commit();
 
 echo "\n", count($fusiones), " grupos, $nSeVan contactos ", $aplicar ? "fusionados" : "a fusionar", ", $nPedidos pedidos reasignados.\n";
-if ($mismoNombre) echo "$aRevisar grupos de mismo nombre quedan para revisar a mano (datos distintos o nombre de una sola palabra).\n";
+if ($mismoNombre) echo count($revisar), " grupos de mismo nombre quedan para revisar a mano (datos distintos o nombre de una sola palabra).\n";
 if (!$aplicar) echo "No se modificó nada. Para aplicar, repetir el comando agregando --aplicar\n";
+
+// --- planilla para la revisión a mano: en la columna unirA se escribe el id del
+// contacto con el que se une cada fila (vacía = queda como está)
+if ($mismoNombre && !$aplicar) {
+    $csv = fopen(__DIR__ . '/duplicados_a_revisar.csv', 'w');
+    fwrite($csv, "\xEF\xBB\xBF");
+    fputcsv($csv, ['grupo', 'unirA', 'id', 'apellido', 'nombre', 'telefono', 'celular', 'correo', 'cuit', 'empresa',
+                   'pedidos', 'primerPedido', 'ultimoPedido', 'ultimoDetalle', 'notas'], ';');
+    $det = $conn->prepare("SELECT detalle FROM pedidos WHERE idContacto = ? ORDER BY entrada DESC LIMIT 1");
+    $corto = fn($t) => preg_replace('/^(.{0,80}).*$/us', '$1', trim(preg_replace('/\s+/', ' ', (string)$t)));
+    foreach ($revisar as $g => $ids) {
+        sort($ids);
+        foreach ($ids as $id) {
+            $c = $C[$id];
+            $det->bind_param('i', $id); $det->execute();
+            $d = $det->get_result()->fetch_row()[0] ?? '';
+            fputcsv($csv, [$g + 1, '', $id, $c['apellido'], $c['nombre'], $c['telefono'], $c['celular'] ?? '', $c['correo'], $c['cuit'],
+                $c['esEmpresa'] ?? 0 ? 'sí' : '', $c['pedidos'], substr((string)$c['primero'], 0, 10), substr((string)$c['ultimo'], 0, 10),
+                $corto($d), $corto($c['notas'])], ';');
+        }
+        fputcsv($csv, [], ';');
+    }
+    fclose($csv);
+    echo "Grupos para revisar a mano en sql/limpieza/duplicados_a_revisar.csv\n";
+}
