@@ -51,7 +51,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
     </div>
 
     <div class="row g-4">
-        <div class="col-lg-8">
+        <div class="col-lg-9">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-dark text-white py-3">
                     <h5 class="mb-0">Estado por Medios de Pago</h5>
@@ -88,13 +88,13 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                         <?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?>
                                     </td>
                                     <td class="text-end bg-light fw-bold">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?></td>
-                                    <td style="width: 150px;">
+                                    <td style="width: 190px;">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">$</span>
-                                            <input type="number" class="form-control inpMontoReal fw-bold text-success"
+                                            <input type="text" inputmode="numeric" class="form-control inpMontoReal fw-bold text-success text-end"
                                                    data-id="<?php echo $id; ?>"
                                                    data-calculado="<?php echo $deberiaHaber; ?>"
-                                                   value="<?php echo $deberiaHaber; ?>">
+                                                   value="<?php echo number_format($deberiaHaber, 0, ',', '.'); ?>">
                                         </div>
                                     </td>
                                     <td class="text-end">
@@ -142,11 +142,11 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                     <div class="fw-bold"><?php echo date('d/m/Y', strtotime($h['fecha'])); ?></div>
                                     <small class="text-muted"><?php echo date('H:i', strtotime($h['fecha'])); ?> hs</small>
                                 </td>
-                                <td class="text-end">$<?php echo number_format($h['efectivo'], 2); ?></td>
-                                <td class="text-end">$<?php echo number_format($h['BcoMacro'], 2); ?></td>
-                                <td class="text-end">$<?php echo number_format($h['mercadoPago'], 2); ?></td>
-                                <td class="text-end fw-bold">$<?php echo number_format($h['suma'], 2); ?></td>
-                                <td class="text-center <?php echo $claseDif; ?> fw-bold">$<?php echo number_format($h['diferencia'], 2); ?></td>
+                                <td class="text-end">$<?php echo number_format($h['efectivo'], 0, ',', '.'); ?></td>
+                                <td class="text-end">$<?php echo number_format($h['BcoMacro'], 0, ',', '.'); ?></td>
+                                <td class="text-end">$<?php echo number_format($h['mercadoPago'], 0, ',', '.'); ?></td>
+                                <td class="text-end fw-bold">$<?php echo number_format($h['suma'], 0, ',', '.'); ?></td>
+                                <td class="text-center <?php echo $claseDif; ?> fw-bold">$<?php echo number_format($h['diferencia'], 0, ',', '.'); ?></td>
                                 <td class="text-center">
                                     <button class="btn btn-outline-danger btn-sm btnBorrarCierre" data-id="<?php echo $h['id']; ?>">
                                         <i class="bi bi-trash"></i>
@@ -159,12 +159,11 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                 </div>
             </div>
         </div>
-        <div class="col-lg-4">
+        <div class="col-lg-3">
             <div class="card border-0 shadow-sm mb-4 bg-primary bg-opacity-10">
-                <div class="card-body text-center py-4">
-                    <i class="bi bi-cash-stack h1 text-primary"></i>
-                    <h5>Recuento de Billetes</h5>
-                    <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#modalEfectivo">Abrir Planilla</button>
+                <div class="card-body text-center py-2">
+                    <h6 class="mb-2"><i class="bi bi-cash-stack text-primary me-1"></i>Recuento de Billetes</h6>
+                    <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalEfectivo">Abrir Planilla</button>
                 </div>
             </div>
             <div id="panelDetalleMovimientos" class="card border-0 shadow-sm" style="display:none;">
@@ -194,6 +193,21 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
 
 
 <script>
+// Saldo Real se muestra como los demás montos (1.234.567). Mientras no lo cambien,
+// vale lo calculado con sus centavos, así no aparece una diferencia que nadie contó.
+function saldoReal($inp) {
+    let texto = $inp.val().trim();
+    if (texto === $inp.data('mostrado')) return parseFloat($inp.data('calculado'));
+    return parseFloat(texto.replace(/\./g, '').replace(',', '.')) || 0;
+}
+function mostrarSaldoReal($inp) {
+    let valor = saldoReal($inp);
+    $inp.val(Math.round(valor).toLocaleString('es-AR'));
+    if (Math.round(valor) !== Math.round(parseFloat($inp.data('calculado')))) $inp.data('mostrado', null);
+}
+$('.inpMontoReal').each(function() { $(this).data('mostrado', $(this).val()); });
+$('#tablaCierre').on('change blur', '.inpMontoReal', function() { mostrarSaldoReal($(this)); });
+
 // Función para ver el detalle de un medio
 $('.btnVer').click(function() {
     let idM = $(this).data('id');
@@ -210,9 +224,9 @@ $('.btnCerrarParcial').click(function() {
     let $row = $(this).closest('tr');
     let v_idMedio = $(this).data('id');
     let v_montoCalculado = $row.find('.inpMontoReal').data('calculado'); // Lo que el sistema dice
-    let v_montoReal = $row.find('.inpMontoReal').val(); // Lo que el usuario contó
+    let v_montoReal = saldoReal($row.find('.inpMontoReal')); // Lo que el usuario contó
 
-    if(confirm('¿Confirmas el cierre PARCIAL de este medio con un saldo de $' + v_montoReal + '?')) {
+    if(confirm('¿Confirmas el cierre PARCIAL de este medio con un saldo de $' + Math.round(v_montoReal).toLocaleString('es-AR') + '?')) {
         $.post('finanzas/ajaxCierre.php', {
             opcion: 'cierre',
             idMedio: v_idMedio,
@@ -260,7 +274,7 @@ $('#btnCerrarTodos').click(function() {
     $('#tablaCierre tbody tr').each(function() {
         let idMedio = $(this).find('.inpMontoReal').data('id');
         let calculado = parseFloat($(this).find('.inpMontoReal').data('calculado'));
-        let real = parseFloat($(this).find('.inpMontoReal').val());
+        let real = saldoReal($(this).find('.inpMontoReal'));
 
         if (idMedio) {
             datosCierre.push({
