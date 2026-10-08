@@ -42,6 +42,14 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
 }
 ?>
 
+<style>
+    #tablaCierre thead th, #tablaHistorialCierres thead th { background: #e7f1ff; }
+    #tablaCierre td.colMedio { background: #f1f6fd; }
+    #tablaCierre .dato { font-size: .9rem; color: #212529; }
+    #tablaCierre .saldo { font-size: 1.1rem; font-weight: 700; }
+    #tablaCierre .inpMontoReal { font-size: 1.1rem; }
+</style>
+
 <div class="container-fluid p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold"><i class="bi bi-bank text-success me-2"></i>Cierre de Caja</h2>
@@ -53,8 +61,8 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
     <div class="row g-4">
         <div class="col-lg-9">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-dark text-white py-3">
-                    <h5 class="mb-0">Estado por Medios de Pago</h5>
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-bold text-dark">Estado por Medios de Pago</h5>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -66,28 +74,32 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                     <th class="text-end">Monto U.C.</th>
                                     <th class="text-center">Ops.</th>
                                     <th class="text-end">Movimientos</th>
-                                    <th class="text-end bg-light">Debería Haber</th>
-                                    <th class="text-center">Saldo Real (Auditoría)</th>
+                                    <th class="text-end">Saldo Calculado</th>
+                                    <th class="text-center">Saldo Real</th>
+                                    <th class="text-end">Diferencia</th>
                                     <th class="text-end">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($cierre as $id => $v):
                                     $deberiaHaber = $v['montoUC'] + $v['montoCalculado'];
-                                    // Color dinámico: si el movimiento neto es negativo, usamos rojo
-                                    $colorMovimiento = ($v['montoCalculado'] < 0) ? 'text-danger' : 'text-primary';
                                     $signo = ($v['montoCalculado'] >= 0) ? '+$' : '-$';
                                     $valorMostrar = abs($v['montoCalculado']);
+                                    // cerrado hoy y sin movimientos desde entonces
+                                    $cerradoHoy = date('Y-m-d', strtotime($v['fechaUC'])) === date('Y-m-d') && $v['cantOp'] === 0;
                                 ?>
                                 <tr>
-                                    <td class="fw-bold"><?php echo $v['medio']; ?></td>
-                                    <td><small class="text-muted"><?php echo date('d/m/y', strtotime($v['fechaUC'])); ?></small></td>
-                                    <td class="text-end">$<?php echo number_format($v['montoUC'], 0, ',', '.'); ?></td>
-                                    <td class="text-center"><span class="badge bg-secondary rounded-pill"><?php echo $v['cantOp']; ?></span></td>
-                                    <td class="text-end <?php echo $colorMovimiento; ?> fw-bold">
-                                        <?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?>
+                                    <td class="fw-bold colMedio">
+                                        <?php echo $v['medio']; ?>
+                                        <?php if ($cerradoHoy): ?>
+                                            <i class="bi bi-check-circle-fill text-success ms-1" title="Cerrado parcial a las <?php echo date('H:i', strtotime($v['fechaUC'])); ?>"></i>
+                                        <?php endif; ?>
                                     </td>
-                                    <td class="text-end bg-light fw-bold">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?></td>
+                                    <td class="dato"><?php echo date('d/m/y', strtotime($v['fechaUC'])); ?></td>
+                                    <td class="text-end dato">$<?php echo number_format($v['montoUC'], 0, ',', '.'); ?></td>
+                                    <td class="text-center"><span class="badge bg-secondary rounded-pill"><?php echo $v['cantOp']; ?></span></td>
+                                    <td class="text-end dato"><?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?></td>
+                                    <td class="text-end saldo text-primary">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?></td>
                                     <td style="width: 190px;">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">$</span>
@@ -97,6 +109,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                                    value="<?php echo number_format($deberiaHaber, 0, ',', '.'); ?>">
                                         </div>
                                     </td>
+                                    <td class="text-end fw-bold diferencia text-muted">$0</td>
                                     <td class="text-end">
                                         <div class="btn-group">
                                             <button class="btn btn-outline-primary btn-sm btnVer" data-id="<?php echo $id; ?>" data-nombre="<?php echo $v['medio']; ?>">
@@ -116,7 +129,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
             </div>
 
             <div class="card mt-4 shadow-sm border-0">
-                <div class="card-header bg-secondary text-white py-2 small">Historial de Cierres Totales</div>
+                <div class="card-header bg-white border-bottom py-2 fw-bold text-dark">Historial de Cierres Totales</div>
                 <div class="card-body p-0 overflow-auto" style="max-height: 300px;">
                     <table class="table table-hover table-striped table-sm small align-middle mb-0" id="tablaHistorialCierres">
                         <thead class="table-light">
@@ -204,9 +217,19 @@ function mostrarSaldoReal($inp) {
     let valor = saldoReal($inp);
     $inp.val(Math.round(valor).toLocaleString('es-AR'));
     if (Math.round(valor) !== Math.round(parseFloat($inp.data('calculado')))) $inp.data('mostrado', null);
+    mostrarDiferencia($inp);
+}
+// Diferencia = Saldo Real - Saldo Calculado, en rojo si falta plata y en verde si sobra
+function mostrarDiferencia($inp) {
+    let dif = Math.round(saldoReal($inp) - parseFloat($inp.data('calculado')));
+    $inp.closest('tr').find('.diferencia')
+        .text((dif < 0 ? '-$' : '$') + Math.abs(dif).toLocaleString('es-AR'))
+        .removeClass('text-muted text-danger text-success')
+        .addClass(dif < 0 ? 'text-danger' : (dif > 0 ? 'text-success' : 'text-muted'));
 }
 $('.inpMontoReal').each(function() { $(this).data('mostrado', $(this).val()); });
 $('#tablaCierre').on('change blur', '.inpMontoReal', function() { mostrarSaldoReal($(this)); });
+$('#tablaCierre').on('input', '.inpMontoReal', function() { mostrarDiferencia($(this)); });
 
 // Función para ver el detalle de un medio
 $('.btnVer').click(function() {
