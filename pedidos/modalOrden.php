@@ -73,7 +73,7 @@ $recibio = mysqli_fetch_assoc(mysqli_query($conn, $sql))['recibio'] ?? '';
 
         /* Sin margen de página el navegador no tiene dónde imprimir su encabezado y pie
            (fecha, título, dirección de la página); el margen lo da el padding del contenedor. */
-        @page { margin: 0; }
+        @page { size: A4; margin: 0; }
 
         @media print {
             body {
@@ -84,8 +84,13 @@ $recibio = mysqli_fetch_assoc(mysqli_query($conn, $sql))['recibio'] ?? '';
                 }
             #contenedorPrincipal { 
                     position: absolute; left: 0; top: 0; width: 100% !important; 
-                    margin: 0 !important; padding: 10mm !important; box-shadow: none !important; 
+                    margin: 0 !important; padding: 0 !important; box-shadow: none !important; 
                 }
+            /* La hoja A4 se corta al medio: la parte del cliente ocupa justo la mitad (148,5 mm)
+               para que la línea de corte caiga en el centro de la hoja. */
+            .section-cliente, .section-imprenta { box-sizing: border-box; padding: 10mm; }
+            .section-cliente { min-height: 148.5mm; }
+            .linea-corte { margin: 0 !important; }
             .table-light { 
                     background-color: #f8f9fa !important; /*  : exact; */
                 }
@@ -140,6 +145,7 @@ $recibio = mysqli_fetch_assoc(mysqli_query($conn, $sql))['recibio'] ?? '';
                 <div class="col-6">
                     <table class="table table-sm table-bordered">
                         <tr><th class="table-light">Total</th><td class="text-end">$ <?php echo number_format($monto, 2);?></td></tr>
+                        <tr><th class="table-light">Pago Parcial</th><td class="text-end">$ <?php echo number_format($montopagado, 2);?></td></tr>
                         <tr class="<?php echo ($saldo <= 0.1) ? 'table-success' : 'table-warning'; ?>">
                             <th class="fw-bold">SALDO</th>
                             <td class="text-end <?php echo $claseSaldo; ?>"><?php echo $textoSaldo; ?></td>
@@ -181,6 +187,7 @@ $recibio = mysqli_fetch_assoc(mysqli_query($conn, $sql))['recibio'] ?? '';
                 <div class="col-6">
                     <table class="table table-sm table-bordered">
                         <tr><th class="table-light">Total</th><td class="text-end">$ <?php echo number_format($monto, 2);?></td></tr>
+                        <tr><th class="table-light">Pago Parcial</th><td class="text-end">$ <?php echo number_format($montopagado, 2);?></td></tr>
                         <tr class="<?php echo ($saldo <= 0.1) ? 'table-success' : 'table-warning'; ?>">
                             <th class="fw-bold">SALDO</th>
                             <td class="text-end <?php echo $claseSaldo; ?>"><?php echo $textoSaldo; ?></td>
