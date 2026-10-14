@@ -41,6 +41,28 @@ if ($opcion == 'buscarContactosSinUsuario') {
     exit;
 }
 
+// El nombre de usuario no puede ser de otra cuenta (el ingreso lo busca por nombre), y
+// un contacto genérico como Mostrador nunca es cliente web: vería pedidos de muchas personas.
+function errorCuentaNueva($conn, $id, $usuario, $idPerfil, $comprobarNombre = true) {
+    if (trim($usuario) === '') return "Falta el nombre de usuario.";
+    if ($comprobarNombre) {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM usuarios WHERE usuario = ? AND id <> ?");
+        $stmt->bind_param('si', $usuario, $id);
+        $stmt->execute();
+        if ($stmt->get_result()->fetch_row()[0] > 0) return "El usuario '$usuario' ya lo tiene otra cuenta. Elegí otro nombre.";
+    }
+
+    if ($idPerfil === ID_PERFIL_CLIENTE) {
+        $stmt = $conn->prepare("SELECT esGenerico FROM contactos WHERE id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $c = $stmt->get_result()->fetch_assoc();
+        if (!$c) return "No existe el contacto.";
+        if ($c['esGenerico']) return "Un contacto genérico (como Mostrador) no puede tener acceso web de cliente.";
+    }
+    return null;
+}
+
 // --- 2. ACCIONES DE MANTENIMIENTO ---
 switch ($opcion) {
 
@@ -52,6 +74,10 @@ switch ($opcion) {
         $idPerfil = intval($_REQUEST['idPerfil']);
 
         if ($error = errorClaveNueva($clave)) {
+            echo $error;
+            break;
+        }
+        if ($error = errorCuentaNueva($conn, $id, $usuario, $idPerfil)) {
             echo $error;
             break;
         }
@@ -82,6 +108,14 @@ switch ($opcion) {
     $clave = $_POST['clave'];
 
     if ($clave !== '' && ($error = errorClaveNueva($clave))) {
+        die($error);
+    }
+    // Al editar, el nombre se controla solo si cambió (hay cuentas viejas con el nombre repetido).
+    $stmt = $conn->prepare("SELECT usuario FROM usuarios WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $nombreActual = $stmt->get_result()->fetch_row()[0] ?? null;
+    if ($error = errorCuentaNueva($conn, $id, $user, $perfil, $user !== $nombreActual)) {
         die($error);
     }
 

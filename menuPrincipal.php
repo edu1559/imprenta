@@ -1,6 +1,7 @@
 <?php 
 // No hace falta session_start() aquí si ya lo pusiste en el index.php
 include_once('conexion.php');
+include_once(__DIR__ . '/sesion.php');
 $conn = conectarPDO();
 
 // 1. Corregimos el ID de usuario para que use el de la sesión real
@@ -32,6 +33,15 @@ $idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 1; // 1 = 
         $stmt->execute();
         $menuItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Un cliente solo ve los enlaces a páginas que puede abrir (ver puedeVerPagina en sesion.php).
+        // Los ítems padre se quedan: más abajo solo se muestran si les queda algún hijo.
+        if (clienteLogueado()) {
+            $menuItems = array_filter($menuItems, function($m) use ($menuItems) {
+                $esPadre = count(array_filter($menuItems, fn($h) => $h['padre'] == $m['id'])) > 0;
+                return $esPadre || puedeVerPagina($m['pagina']);
+            });
+        }
+
         foreach ($menuItems as $item) {
             if ($item['padre'] == null) {
                 $hijos = array_filter($menuItems, function($h) use ($item) {
@@ -46,21 +56,26 @@ $idUsuario = isset($_SESSION['idUsuario']) ? $_SESSION['idUsuario'] : 1; // 1 = 
                         echo '<li><a class="dropdown-item link-menu" href="#" data-pagina="' . $hijo['pagina'] . '">' . ucfirst($hijo['nombre']) . '</a></li>';
                     }
                     echo '  </ul></li>';
-                } else {
+                } elseif (!clienteLogueado() || puedeVerPagina($item['pagina'])) {
                     echo '<li class="nav-item"><a class="nav-link link-menu" href="#" data-pagina="' . $item['pagina'] . '">' . ucfirst($item['nombre']) . '</a></li>';
                 }
             }
         }
-        ?>
+        // Cerrar sesión no es una página: el cliente siempre tiene Salir.
+        if (clienteLogueado()): ?>
+        <li class="nav-item"><a class="nav-link" href="#" id="lnkSalirCliente">Salir</a></li>
+        <?php endif; ?>
       </ul>
 
       <div class="d-flex align-items-center">
+        <?php if (usuarioLogueado()): ?>
         <div class="input-group input-group-sm me-3" style="width: 250px;">
           <input type="text" id="inpBusquedaGlobal" class="form-control" placeholder="Pedido # o Cliente">
           <button class="btn btn-outline-success" type="button" id="btnBusquedaGlobal">
             <i class="bi bi-search"></i>
           </button>
         </div>
+        <?php endif; ?>
 
         <div class="text-end me-2">
           <small class="d-block fw-bold text-success" style="line-height: 1;">
@@ -110,6 +125,13 @@ $(document).ready(function() {
             // Mandamos la búsqueda a tu página de pedidos con un parámetro extra
             $('#contenido').load('pedidos/pedidos.php?buscar=' + busqueda);
         }
+    });
+
+    $('#lnkSalirCliente').click(function(e) {
+        e.preventDefault();
+        $.get('ingreso/ajaxIngreso.php', { opcion: 'cerrarSesion' }, function() {
+            location.href = 'index.php';
+        });
     });
 
     // Permitir buscar al presionar 'Enter'

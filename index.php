@@ -83,11 +83,13 @@ $(document).ready(function() {
  // Solo se incluyen páginas propias (carpeta/archivo.php), nunca una ruta armada a mano,
  // y quien no ingresó solo ve las públicas (el resto muestra el aviso sin cortar la página).
  include_once(__DIR__ . '/sesion.php');
- $pagina = $_GET['pagina'] ?? 'ingreso/bienvenida.php';
+ // El cliente que ingresó por la web arranca en sus pedidos.
+ $paginaInicio = (clienteLogueado() && puedeVerPagina('clientes/misPedidos.php')) ? 'clientes/misPedidos.php' : 'ingreso/bienvenida.php';
+ $pagina = $_GET['pagina'] ?? $paginaInicio;
  if (!is_string($pagina) || !preg_match('#^[A-Za-z0-9_]+(/[A-Za-z0-9_]+)*\.php$#', $pagina) || !is_file(__DIR__ . '/' . $pagina)) {
-	$pagina = 'ingreso/bienvenida.php';
+	$pagina = $paginaInicio;
  }
- if (!usuarioLogueado() && !in_array($pagina, PAGINAS_PUBLICAS, true)) {
+ if (!puedeVerPagina($pagina)) {
 	avisoSoloTrabajadores();
  } else {
 	include_once($pagina);
