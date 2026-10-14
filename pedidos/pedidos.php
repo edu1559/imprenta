@@ -46,7 +46,8 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
         SUM(NOT (estadoProduccion = 3 AND estadoEntrega = 3 AND estadoPago = 3)) AS abiertos,
         SUM(estadoProduccion IN (1,2)) AS sinTerminar,
         SUM(estadoPago IN (1,2))       AS sinPagar,
-        SUM(estadoEntrega IN (1,2))    AS sinEntregar
+        SUM(estadoEntrega IN (1,2))    AS sinEntregar,
+        SUM(estadoWeb = 1)             AS webPendientes
     FROM pedidos WHERE anulado = 0"));
 
 // Vista "pedidos de un contacto": todos sus pedidos en la tabla, para editarlos o cobrarlos.
@@ -97,6 +98,9 @@ if ($idContactoVer > 0) {
                 <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinTerminar">Sin Terminar (<?= (int)$cantidades['sinTerminar'] ?>)</button>
                 <button type="button" class="btn btn-outline-danger btnOpciones"  data-valor="sinPagar">Sin Pagar (<?= (int)$cantidades['sinPagar'] ?>)</button>
                 <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinEntregar">Sin Entregar (<?= (int)$cantidades['sinEntregar'] ?>)</button>
+                <?php if ($cantidades['webPendientes'] > 0) { // pedidos que hicieron clientes desde la web y nadie revisó ?>
+                <button type="button" class="btn btn-warning btnOpciones" data-valor="webPendientes"><i class="bi bi-globe"></i> Web pendientes (<?= (int)$cantidades['webPendientes'] ?>)</button>
+                <?php } ?>
             </div>
         </div>
 
@@ -192,7 +196,8 @@ if ($idContactoVer > 0) {
                 u.usuario,
                 c.celular,      -- 17: para el botón de WhatsApp (van al final para no correr los índices)
                 c.apellido,     -- 18
-                c.nombre        -- 19
+                c.nombre,       -- 19
+                p.estadoWeb     -- 20: pedido web (1 = pendiente de revisión)
         from pedidos p 
                 inner join contactos c 
                     on p.idContacto = c.id 
@@ -233,10 +238,11 @@ if ($idContactoVer > 0) {
             case 'sinPagar':    $sql .= " WHERE p.estadoPago in (1,2) "; break;
             case 'sinEntregar': $sql .= " WHERE p.estadoEntrega in (1,2) "; break;
             case 'sinTerminar': $sql .= " WHERE p.estadoProduccion in (1,2) "; break;
+            case 'webPendientes': $sql .= " WHERE p.estadoWeb = 1 "; break;
             // 'ultimos' (o ningún filtro) no necesita WHERE extra, el LIMIT se encarga
         }
         // Los filtros de pendientes muestran todos, para poder recorrerlos y cerrarlos.
-        $sql .= " ORDER BY p.id DESC" . (in_array($opcion, ['sinPagar', 'sinEntregar', 'sinTerminar']) ? '' : ' LIMIT 30');
+        $sql .= " ORDER BY p.id DESC" . (in_array($opcion, ['sinPagar', 'sinEntregar', 'sinTerminar', 'webPendientes']) ? '' : ' LIMIT 30');
     }
     //echo $sql;
 
@@ -351,7 +357,10 @@ if ($idContactoVer > 0) {
                     // Detectamos si el pedido está 100% terminado myrow[8] = Entrega, myrow[9] = Produccion, myrow[10] = Pago
                         $estaTerminado = ($myrow[8] == 3 && $myrow[9] == 3 && $myrow[10] == 3);
                    
-                        if (!$estaTerminado) {
+                        if ($myrow[20] == 1) {
+                            // Pedido web sin revisar: en vez de editarlo, se aprueba o se rechaza
+                            echo "<button class='btn btn-warning btn-sm btnRevisarWeb' data-id='$myrow[0]' title='Pedido web: aprobar o rechazar'><i class='bi bi-globe'></i> Revisar</button>";
+                        } elseif (!$estaTerminado) {
                             // Solo mostramos el botón si NO está terminado
                             echo "<button class='btn btn-outline-dark btnPedidoEditar'> <i class='bi bi-pencil'> </i></button>";
                         } else {
@@ -455,6 +464,12 @@ if ($idContactoVer > 0) {
         });
     });
 
+    $('.btnRevisarWeb').on('click', function(){
+        $('#modalUniversal .modal-content').load('pedidos/modalPedidoWeb.php?idPedido=' + $(this).data('id'), function(){
+            $('#modalUniversal').modal('show');
+        });
+    });
+
       $('.btnPedidoEditar').on('click', function(){
         var v_idPedido = $(this).closest('tr').find('td:first').text();
         v_url = 'pedidos/modalEditarPedido.php?idPedido=' + v_idPedido ;
@@ -520,9 +535,12 @@ if ($idContactoVer > 0) {
             
           //  alert(estadoEntrega + '  ' + estadoProduccion + '  ' + estadoPago + '  ' +  montoPagado + ' ' + montoTotal  );
             
-            if (diferenciaMonto <= 0.1 && estadoPago == 3 && estadoEntrega == 3 && estadoProduccion == 3) {
+            if ($(this).find('.btnRevisarWeb').length) {
+                // Pedido web sin revisar: no se cierra hasta aprobarlo
+                $(this).find('.terminado').html('<span class="badge bg-warning text-dark">Web</span>');
+            } else if (diferenciaMonto <= 0.1 && estadoPago == 3 && estadoEntrega == 3 && estadoProduccion == 3) {
                 $(this).find('.terminado').text('Terminado');
-               
+
             } else {
                 $(this).find('.terminado').html('<button type="button" class="btn btn-success btnCerrar">Cerrar</button>');
             }

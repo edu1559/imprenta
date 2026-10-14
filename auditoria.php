@@ -8,6 +8,11 @@ include_once(__DIR__ . '/sesion.php');
 
 const ID_PERFIL_ADMINISTRADOR = 1;
 
+// pedidos.estadoWeb (ver sql/2026-10-14_pedidos_web.sql). NULL = cargado por la imprenta.
+const ESTADO_WEB_PENDIENTE = 1;
+const ESTADO_WEB_APROBADO  = 2;
+const ESTADO_WEB_RECHAZADO = 3;
+
 function datosUsuarioActual($conn) {
     if (!usuarioLogueado()) return null;
     $id = (int)$_SESSION['idUsuario'];
@@ -137,13 +142,24 @@ function describirPago($pago) {
 // Pedido con sus estados, si está anulado y cuántos pagos tiene.
 function cargarPedido($conn, $idPedido) {
     $stmt = $conn->prepare("SELECT p.id, p.monto, p.montoPagado, p.anulado,
-                                   p.estadoProduccion, p.estadoEntrega, p.estadoPago,
+                                   p.estadoProduccion, p.estadoEntrega, p.estadoPago, p.estadoWeb,
                                    (SELECT COUNT(*) FROM pagos pg WHERE pg.idPedido = p.id) AS cantPagos
                             FROM pedidos p
                             WHERE p.id = ?");
     $stmt->bind_param('i', $idPedido);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();
+}
+
+// Los textos de pedidos son latin1 (en MySQL, cp1252): un emoji u otro carácter de fuera
+// hace fallar el INSERT ("Incorrect string value"). Se sacan antes de guardar.
+function textoLatin1($texto) {
+    return preg_replace('/[^\t\n\r\x{20}-\x{7E}\x{A0}-\x{FF}€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/u', '', (string)$texto) ?? '';
+}
+
+// Pedido web que todavía nadie revisó: no se edita, cobra ni cierra hasta aprobarlo o rechazarlo.
+function pedidoWebPendiente($pedido) {
+    return (int)($pedido['estadoWeb'] ?? 0) === ESTADO_WEB_PENDIENTE;
 }
 
 function describirEstados($pedido) {

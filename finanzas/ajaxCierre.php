@@ -250,6 +250,10 @@ switch ($opcion) {
             echo "❌ El pedido está anulado o no existe.";
             break;
         }
+        if (pedidoWebPendiente($pedido)) {
+            echo "❌ Es un pedido web sin revisar: primero aprobalo y ponele el monto.";
+            break;
+        }
 
         // el mismo pago dos veces en pocos segundos es un doble envío, no un segundo pago
         $repetido = $conn->prepare("SELECT 1 FROM pagos WHERE idPedido = ? AND monto = ? AND idMedioPago = ?
@@ -357,6 +361,10 @@ switch ($opcion) {
         $pedido = cargarPedido($conn, $idPedido);
         if (!$pedido || $pedido['anulado']) {
             echo "El pedido está anulado o no existe.";
+            break;
+        }
+        if (pedidoWebPendiente($pedido)) {
+            echo "Es un pedido web sin revisar: primero aprobalo.";
             break;
         }
 

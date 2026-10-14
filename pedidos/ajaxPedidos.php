@@ -192,6 +192,11 @@ case 'cerrarPedido':
         echo "❌ El pedido está anulado.";
         break;
     }
+    if (pedidoWebPendiente($actual)) {
+        mysqli_rollback($conn);
+        echo "❌ Es un pedido web sin revisar: primero aprobalo o rechazalo.";
+        break;
+    }
     $saldo = round($actual['monto'] - $actual['montoPagado'], 2);
 
     // "Ya estaba cobrado": el saldo se cobró en su momento pero no se registró. Va como
@@ -302,6 +307,10 @@ case 'anularPedido':
         echo "❌ El pedido ya está anulado.";
         break;
     }
+    if (pedidoWebPendiente($pedido)) {
+        echo "❌ Es un pedido web sin revisar: en vez de anularlo, rechazalo (botón Revisar), así el cliente ve el motivo.";
+        break;
+    }
     if (pedidoCerrado($pedido)) {
         echo "❌ El pedido está cerrado y no se puede anular.";
         break;
@@ -367,11 +376,77 @@ case 'reabrirPedido':
         echo "❌ Error al reabrir: " . $e->getMessage();
     }
     break;
+
+// -------------------------------------------------------------
+// Pedidos web (los hace un cliente desde clientes/nuevoPedido.php). Aprobar: se le pone
+// precio y fecha y pasa a producción como cualquier venta. Rechazar: queda anulado y el
+// cliente ve el motivo en "Pendientes de aprobación". En los dos casos, la nota es para el cliente.
+// -------------------------------------------------------------
+case 'aprobarWeb':
+case 'rechazarWeb':
+    $idPedido = (int)$_POST['idPedido'];
+    $nota = textoLatin1(trim($_POST['notaCliente'] ?? ''));
+    if (preg_match_all('/./su', $nota) > 255) {
+        echo "❌ La nota para el cliente no puede tener más de 255 caracteres.";
+        break;
+    }
+    $aprobar = $opcion === 'aprobarWeb';
+    if ($aprobar) {
+        $monto = (float)($_POST['monto'] ?? 0);
+        $prometido = trim($_POST['prometido'] ?? '');
+        if ($monto <= 0) {
+            echo "❌ Falta el monto del pedido.";
+            break;
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $prometido)) {
+            echo "❌ Falta la fecha prometida.";
+            break;
+        }
+    } elseif ($nota === '') {
+        echo "❌ Falta el motivo del rechazo (lo va a ver el cliente).";
+        break;
+    }
+
+    mysqli_begin_transaction($conn);
+    try {
+        // bloquea el pedido: si dos personas lo revisan a la vez, la segunda ve que ya no está pendiente
+        mysqli_query($conn, "SELECT id FROM pedidos WHERE id = $idPedido FOR UPDATE");
+        $pedido = cargarPedido($conn, $idPedido);
+        if (!$pedido || $pedido['anulado'] || !pedidoWebPendiente($pedido)) {
+            mysqli_rollback($conn);
+            echo "❌ El pedido ya no está pendiente de revisión.";
+            break;
+        }
+        if ($aprobar) {
+            $estadoPago = calcularEstadoPago($monto, (float)$pedido['montoPagado']);
+            $stmt = $conn->prepare("UPDATE pedidos SET estadoWeb = ?, monto = ?, prometido = ?, notaCliente = NULLIF(?, ''),
+                                        estadoProduccion = 1, estadoEntrega = 1, estadoPago = ?
+                                    WHERE id = ?");
+            $estado = ESTADO_WEB_APROBADO;
+            $stmt->bind_param('idssii', $estado, $monto, $prometido, $nota, $estadoPago, $idPedido);
+            $stmt->execute();
+            registrarModificacion($conn, 'pedido', $idPedido, $idPedido, 'aprobarWeb', null, '$' . $monto, $nota !== '' ? $nota : 'Pedido web aprobado');
+        } else {
+            $stmt = $conn->prepare("UPDATE pedidos SET estadoWeb = ?, notaCliente = ?, anulado = 1 WHERE id = ?");
+            $estado = ESTADO_WEB_RECHAZADO;
+            $stmt->bind_param('isi', $estado, $nota, $idPedido);
+            $stmt->execute();
+            registrarModificacion($conn, 'pedido', $idPedido, $idPedido, 'rechazarWeb', null, null, $nota);
+        }
+        marcarFechaTerminado($conn, $idPedido);
+        mysqli_commit($conn);
+        echo $aprobar ? "✅ Pedido web #$idPedido aprobado: ya está en producción." : "✅ Pedido web #$idPedido rechazado.";
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        echo "❌ Error: " . $e->getMessage();
+    }
+    break;
 };
 
 // Motivo por el que un pedido no se puede editar (null si se puede).
 function bloqueoEdicionPedido($pedido) {
     if ($pedido['anulado']) return "El pedido está anulado.";
+    if (pedidoWebPendiente($pedido)) return "Es un pedido web sin revisar: primero aprobalo o rechazalo (botón Revisar).";
     if (pedidoCerrado($pedido)) return "El pedido está cerrado. Para modificarlo, un administrador tiene que reabrirlo.";
     return null;
 }

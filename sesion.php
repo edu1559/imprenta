@@ -96,6 +96,15 @@ function puedeVerPagina($pagina) {
         && in_array($pagina, paginasConPermiso(), true);
 }
 
+// Para los ajax de clientes/: hace falta un cliente logueado con permiso a la página
+// desde la que se usa (así, sacarle la página del menú también le saca la acción).
+function exigirClienteAjax($pagina) {
+    if (clienteLogueado() && puedeVerPagina($pagina)) return;
+    http_response_code(401);
+    echo "⛔ Tu sesión expiró o no tenés acceso. Volvé a ingresar para continuar.";
+    exit;
+}
+
 // Para las páginas de clientes/, con su propio __FILE__ (se cargan desde index.php o sueltas
 // desde el menú, así que no alcanza con lo que controla index.php).
 function exigirClientePagina($archivo) {

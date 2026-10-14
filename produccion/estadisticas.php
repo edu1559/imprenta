@@ -40,7 +40,8 @@ function sumarColumna($conn, &$filas, $columna, $sql, $params = []) {
 
 sumarColumna($conn, $filas, 'cargados',
     "SELECT idUsuario, COUNT(*), COALESCE(SUM(monto), 0) FROM pedidos
-     WHERE anulado = 0 AND idTipoPedido = 1 AND entrada >= ? AND entrada < ? GROUP BY idUsuario",
+     WHERE anulado = 0 AND idTipoPedido = 1 AND estadoWeb IS NULL -- los web los cargó el cliente, no un empleado
+       AND entrada >= ? AND entrada < ? GROUP BY idUsuario",
     [$desdeSQL, $hastaSQL]);
 
 sumarColumna($conn, $filas, 'terminados',

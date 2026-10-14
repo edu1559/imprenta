@@ -5,18 +5,21 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirClientePagina(__FILE__);
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/comunClientes.php');
 $conn = conectar();
 
 const MAX_PEDIDOS_CLIENTE = 100;
 
 $idContacto = (int)$_SESSION['idUsuario'];
 
-// Primero los que siguen abiertos, después los más recientes.
+// Primero los que siguen abiertos, después los más recientes. Los pedidos web que la
+// imprenta todavía no revisó van aparte, en clientes/pendientes.php.
 $stmt = $conn->prepare("SELECT p.id, p.idTipoPedido, p.detalle, p.entrada, p.prometido, p.monto, p.montoPagado,
-                               p.estadoProduccion, p.estadoEntrega, p.estadoPago,
+                               p.estadoProduccion, p.estadoEntrega, p.estadoPago, p.notaCliente,
                                (p.estadoProduccion = 3 AND p.estadoEntrega = 3 AND p.estadoPago = 3) AS cerrado
                         FROM pedidos p
                         WHERE p.idContacto = ? AND p.anulado = 0 AND p.idTipoPedido IN (1, 3)
+                          AND NOT (p.estadoWeb <=> 1)
                         ORDER BY cerrado ASC, p.id DESC
                         LIMIT " . MAX_PEDIDOS_CLIENTE);
 $stmt->bind_param('i', $idContacto);
@@ -33,15 +36,6 @@ if ($pedidos) {
                                 WHERE pg.idPedido IN ($ids)
                                 ORDER BY pg.fecha, pg.id");
     while ($pg = mysqli_fetch_assoc($res)) $pagos[$pg['idPedido']][] = $pg;
-}
-
-function plata($monto) {
-    $m = round((float)$monto, 2);
-    return '$' . number_format($m, floor($m) == $m ? 0 : 2, ',', '.');
-}
-
-function fecha($valor) {
-    return $valor ? date('d/m/Y', strtotime($valor)) : '';
 }
 
 // Un solo estado, en palabras del cliente: [texto, color de Bootstrap].
@@ -90,6 +84,10 @@ $saldoTotal = (float)$stmt->get_result()->fetch_row()[0];
             </div>
 
             <div class="my-2" style="white-space: pre-line;"><?= htmlspecialchars((string)$p['detalle']) ?></div>
+
+            <?php if ($p['notaCliente']): ?>
+                <div class="alert alert-info py-1 px-2 small mb-2"><i class="bi bi-chat-left-text me-1"></i><?= htmlspecialchars($p['notaCliente']) ?></div>
+            <?php endif; ?>
 
             <?php if ($p['prometido'] && $p['estadoEntrega'] != 3 && $p['idTipoPedido'] == 1): ?>
                 <div class="small text-muted mb-2"><i class="bi bi-calendar-event me-1"></i>Fecha prometida: <?= fecha($p['prometido']) ?></div>
