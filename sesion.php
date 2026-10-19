@@ -121,3 +121,27 @@ function exigirClientePagina($archivo) {
     }
     exit;
 }
+
+// Secciones internas que se pueden sacar desde Contactos > Permisos: además de ser trabajador,
+// hay que tener la página en los permisos (sacarla del menú también saca las acciones).
+function tienePermiso($pagina) {
+    return usuarioLogueado() && in_array($pagina, paginasConPermiso(), true);
+}
+
+function exigirPermisoAjax($pagina) {
+    exigirTrabajadorAjax();
+    if (tienePermiso($pagina)) return;
+    http_response_code(403);
+    echo "⛔ No tenés permiso para esta sección. Pedíselo a un administrador.";
+    exit;
+}
+
+function exigirPermisoPagina($pagina) {
+    exigirTrabajadorPagina();
+    if (tienePermiso($pagina)) return;
+    echo '<div class="container my-5"><div class="alert alert-warning text-center p-4">
+            <i class="bi bi-lock fs-1 d-block mb-2"></i>
+            No tenés permiso para esta sección. Pedíselo a un administrador.
+          </div></div>';
+    exit;
+}

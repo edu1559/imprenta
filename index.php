@@ -197,6 +197,8 @@ $(document).ready(function() {
             $('.modal.show').not('#modalExpiracion').modal('hide');
             $('#modalExpiracion').modal('show');
         }
+        // 403: ingresó, pero le sacaron el permiso a esa sección (exigirPermisoAjax).
+        if (xhr.status === 403) alert(xhr.responseText);
     });
 
    
