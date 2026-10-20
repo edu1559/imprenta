@@ -9,7 +9,7 @@ $conn = conectar();
 $id = (int)($_GET['id'] ?? 0);
 $insumo = ['idCategoria' => 0, 'nombre' => '', 'tipo' => '', 'largo' => '', 'ancho' => '', 'gramaje' => '', 'color' => '',
            'idMaquina' => 0, 'rendimiento' => '', 'medida' => '', 'unidadCompra' => '', 'unidadesPorCompra' => '',
-           'unidadUso' => '', 'observaciones' => '', 'activo' => 1, 'maquina' => null];
+           'unidadUso' => '', 'controlaStock' => 0, 'stockMinimo' => null, 'observaciones' => '', 'activo' => 1, 'maquina' => null];
 if ($id > 0) {
     $stmt = $conn->prepare("SELECT i.*, m.nombre AS maquina FROM insumos i LEFT JOIN maquinas m ON m.id = i.idMaquina WHERE i.id = ?");
     $stmt->bind_param('i', $id);
@@ -135,6 +135,23 @@ function valor($v) { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES); }
             </div>
         </div>
 
+        <div class="row mb-3 g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="insControlaStock" <?= $insumo['controlaStock'] ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="insControlaStock">Controlar stock</label>
+                </div>
+            </div>
+            <div class="col-md-8 stockMinimo">
+                <div class="input-group">
+                    <span class="input-group-text">Avisar con menos de</span>
+                    <input type="number" class="form-control" id="insStockMinimo" min="1"
+                           value="<?= $insumo['stockMinimo'] ? valor(round($insumo['stockMinimo'] / max(1, (int)$insumo['unidadesPorCompra']))) : '' ?>">
+                    <span class="input-group-text" id="insStockMinimoUnidad"><?= valor(strtolower($insumo['unidadCompra'] ?: 'unidades')) ?></span>
+                </div>
+            </div>
+        </div>
+
         <div class="mb-3">
             <label class="form-label">Observaciones:</label>
             <input type="text" class="form-control" id="insObservaciones" maxlength="255" value="<?= valor($insumo['observaciones']) ?>">
@@ -249,10 +266,20 @@ $(document).ready(function() {
             $('#insUnidadCompra').val(PRESENTACION[ficha][0]);
             $('#insUnidadesPorCompra').val(PRESENTACION[ficha][1]);
             $('#insUnidadUso').val(PRESENTACION[ficha][2]);
+            // Por ahora el stock se controla en papeles y toner.
+            $('#insControlaStock').prop('checked', ficha === 'toner' || $('#insCategoria option:selected').text().trim() === 'Papeles');
         }
     }
     $('#insCategoria').on('change', function() { mostrarFicha(true); });
     mostrarFicha(false);
+
+    // El mínimo se escribe en la unidad de compra (resmas, cartuchos).
+    function mostrarMinimo() {
+        $('#formInsumo .stockMinimo').toggle($('#insControlaStock').is(':checked'));
+        $('#insStockMinimoUnidad').text(($('#insUnidadCompra').val() || 'unidades').toLowerCase());
+    }
+    $('#insControlaStock, #insUnidadCompra, #insCategoria').on('change input', mostrarMinimo);
+    mostrarMinimo();
 
     // Al cerrar, la lista se recarga solo si algo cambió.
     $('#modalUniversal').off('hidden.bs.modal.insumos').one('hidden.bs.modal.insumos', function() {
@@ -283,6 +310,8 @@ $(document).ready(function() {
             unidadesPorCompra: $('#insUnidadesPorCompra').val(),
             unidadUso: $('#insUnidadUso').val(),
             observaciones: $('#insObservaciones').val(),
+            controlaStock: $('#insControlaStock').is(':checked') ? 1 : '',
+            stockMinimo: $('#insStockMinimo').val(),
             activo: $('#insActivo').is(':checked') ? 1 : ''
         }, function(res) {
             res = res.trim();

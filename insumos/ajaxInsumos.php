@@ -88,26 +88,33 @@ case 'guardarInsumo':
     }
     if ($campos['idMaquina'] !== null && !existe($conn, 'maquinas', $campos['idMaquina'])) { echo "❌ La máquina elegida no existe."; break; }
 
+    // El mínimo se escribe en unidad de compra (resmas) y se guarda en unidad de uso (hojas), como el stock.
+    $controlaStock = empty($_POST['controlaStock']) ? 0 : 1;
+    $stockMinimo = enteroCampo('stockMinimo');
+    if ($stockMinimo === false) { echo "❌ El stock mínimo tiene que ser un número entero mayor que cero (o vacío para no avisar)."; break; }
+    $stockMinimo = $controlaStock && $stockMinimo ? $stockMinimo * $campos['unidadesPorCompra'] : null;
+
     $activo = empty($_POST['activo']) ? 0 : 1;
     $c = $campos;
     if ($id === 0) {
         $stmt = $conn->prepare("INSERT INTO insumos (idCategoria, nombre, tipo, largo, ancho, gramaje, color, idMaquina, rendimiento, medida,
-                                                     unidadCompra, unidadesPorCompra, unidadUso, observaciones, activo, fechaCarga, idUsuario)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)");
-        $stmt->bind_param('issiiisiississii', $idCategoria, $c['nombre'], $c['tipo'], $c['largo'], $c['ancho'], $c['gramaje'], $c['color'],
+                                                     unidadCompra, unidadesPorCompra, unidadUso, controlaStock, stockMinimo, observaciones,
+                                                     activo, fechaCarga, idUsuario)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)");
+        $stmt->bind_param('issiiisiissisiisii', $idCategoria, $c['nombre'], $c['tipo'], $c['largo'], $c['ancho'], $c['gramaje'], $c['color'],
                           $c['idMaquina'], $c['rendimiento'], $c['medida'], $c['unidadCompra'], $c['unidadesPorCompra'], $c['unidadUso'],
-                          $c['observaciones'], $activo, $idUsuario);
+                          $controlaStock, $stockMinimo, $c['observaciones'], $activo, $idUsuario);
         // El formulario sigue abierto para cargarle los precios: necesita el id nuevo.
         echo $stmt->execute() ? "✅ " . $conn->insert_id : "❌ Error al guardar.";
     } else {
         if (!existe($conn, 'insumos', $id)) { echo "❌ No se encontró el insumo."; break; }
         $stmt = $conn->prepare("UPDATE insumos SET idCategoria = ?, nombre = ?, tipo = ?, largo = ?, ancho = ?, gramaje = ?, color = ?,
                                        idMaquina = ?, rendimiento = ?, medida = ?, unidadCompra = ?, unidadesPorCompra = ?, unidadUso = ?,
-                                       observaciones = ?, activo = ?
+                                       controlaStock = ?, stockMinimo = ?, observaciones = ?, activo = ?
                                 WHERE id = ?");
-        $stmt->bind_param('issiiisiississii', $idCategoria, $c['nombre'], $c['tipo'], $c['largo'], $c['ancho'], $c['gramaje'], $c['color'],
+        $stmt->bind_param('issiiisiissisiisii', $idCategoria, $c['nombre'], $c['tipo'], $c['largo'], $c['ancho'], $c['gramaje'], $c['color'],
                           $c['idMaquina'], $c['rendimiento'], $c['medida'], $c['unidadCompra'], $c['unidadesPorCompra'], $c['unidadUso'],
-                          $c['observaciones'], $activo, $id);
+                          $controlaStock, $stockMinimo, $c['observaciones'], $activo, $id);
         echo $stmt->execute() ? "✅ " . $id : "❌ Error al guardar.";
     }
     break;

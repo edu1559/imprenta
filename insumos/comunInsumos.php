@@ -58,3 +58,18 @@ function costoPorUnidad($i, $precio) {
     }
     return $texto ?: '-';
 }
+
+// Cantidad en unidad de uso mostrada en unidad de compra más sueltas: "12 resmas y 250 hojas",
+// "3 cartuchos". Con un negativo (stock mal cargado) se antepone el signo.
+function cantidadEnUnidades($i, $cantidad) {
+    $porCompra = max(1, (int)$i['unidadesPorCompra']);
+    $signo = $cantidad < 0 ? '−' : '';
+    $cantidad = abs((int)$cantidad);
+    $enteras = intdiv($cantidad, $porCompra);
+    $sueltas = $cantidad % $porCompra;
+    $nombre = fn($n, $unidad) => number_format($n, 0, ',', '.') . ' ' . strtolower($n === 1 ? $unidad : plural($unidad));
+    $partes = [];
+    if ($enteras) $partes[] = $nombre($enteras, $i['unidadCompra']);
+    if ($sueltas) $partes[] = $nombre($sueltas, $i['unidadUso']);
+    return $partes ? $signo . implode(' y ', $partes) : '0';
+}
