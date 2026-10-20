@@ -21,7 +21,10 @@ $res = mysqli_query($conn, "SELECT p.id, CONCAT(c.apellido, ' ', COALESCE(c.nomb
                                    -- Partes del trabajo que están afuera (produccion/tercerizados.php), separadas por '|'
                                    (SELECT GROUP_CONCAT(CONCAT(IF(t.fechaListo IS NOT NULL, 'L', IF(t.fechaEnviado IS NOT NULL, 'E', 'P')), pr.apellido) SEPARATOR '|')
                                     FROM tercerizados t INNER JOIN contactos pr ON pr.id = t.idProveedor
-                                    WHERE t.idPedido = p.id AND t.fechaRecibido IS NULL) AS tercerizados
+                                    WHERE t.idPedido = p.id AND t.fechaRecibido IS NULL) AS tercerizados,
+                                   -- Insumos cargados (produccion/modalPedidoInsumos.php): cuántos y su costo
+                                   (SELECT COUNT(*) FROM pedidosInsumos pi WHERE pi.idPedido = p.id) AS insumos,
+                                   (SELECT SUM(pi.cantidad * pi.costoUnitario) FROM pedidosInsumos pi WHERE pi.idPedido = p.id) AS costoInsumos
                             FROM pedidos p
                             INNER JOIN contactos c ON c.id = p.idContacto
                             LEFT JOIN usuarios u ON u.id = p.idUsuario
@@ -114,6 +117,9 @@ foreach ($trabajadores as $id => $usuario) {
                         ?>
                         <span class="badge <?= $claseTercerizado ?>"><i class="bi bi-truck"></i> <?= $textoTercerizado . ' ' . htmlspecialchars(trim(substr($tercerizado, 1), ' -')) ?></span>
                         <?php endforeach; ?>
+                        <?php if ($p['insumos']): ?>
+                        <span class="badge bg-info text-dark" title="Insumos cargados en el pedido"><i class="bi bi-box-seam"></i> insumos $<?= number_format((float)$p['costoInsumos'], 0, ',', '.') ?></span>
+                        <?php endif; ?>
                         <div class="small text-muted mb-2">
                             Entró el <?= date('d/m', strtotime($p['entrada'])) ?> · cargó <?= htmlspecialchars($p['cargo'] ?? '-') ?>
                         </div>
@@ -125,6 +131,7 @@ foreach ($trabajadores as $id => $usuario) {
                             <select class="form-select form-select-sm selResponsable" style="flex: 1 1 110px; min-width: 110px;" data-actual="<?= $idResponsable ?>" title="Responsable de producción">
                                 <?= str_replace("value='$idResponsable'", "value='$idResponsable' selected", $opcionesResponsable) ?>
                             </select>
+                            <button type="button" class="btn btn-outline-dark btn-sm btnInsumos" title="Insumos que se usaron"><i class="bi bi-box-seam"></i></button>
                             <button type="button" class="btn btn-outline-dark btn-sm btnTercerizar" title="Mandar una parte a un proveedor"><i class="bi bi-truck"></i></button>
                             <button type="button" class="btn btn-outline-dark btn-sm btnEditar" title="Editar pedido"><i class="bi bi-pencil"></i></button>
                             <button type="button" class="btn btn-outline-dark btn-sm btnOrden" title="Orden de trabajo"><i class="bi bi-printer"></i></button>
@@ -182,6 +189,13 @@ foreach ($trabajadores as $id => $usuario) {
     $('#pizarra').on('click', '.btnTercerizar', function() {
         var id = $(this).closest('.tarjetaPedido').data('id');
         $('#modalUniversal .modal-content').load('produccion/modalTercerizado.php?idPedido=' + id, function() {
+            $('#modalUniversal').modal('show');
+        });
+    });
+
+    $('#pizarra').on('click', '.btnInsumos', function() {
+        var id = $(this).closest('.tarjetaPedido').data('id');
+        $('#modalUniversal .modal-content').load('produccion/modalPedidoInsumos.php?idPedido=' + id, function() {
             $('#modalUniversal').modal('show');
         });
     });

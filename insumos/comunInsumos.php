@@ -73,3 +73,15 @@ function cantidadEnUnidades($i, $cantidad) {
     if ($sueltas) $partes[] = $nombre($sueltas, $i['unidadUso']);
     return $partes ? $signo . implode(' y ', $partes) : '0';
 }
+
+// Cantidad del formulario en unidad de uso: enteras (resmas) × lo que trae cada una + sueltas
+// (hojas). null si las dos están vacías; false si alguna no es un entero >= 0.
+function cantidadDelFormulario($datos, $porCompra) {
+    $enteras = trim((string)($datos['enteras'] ?? ''));
+    $sueltas = trim((string)($datos['sueltas'] ?? ''));
+    if ($enteras === '' && $sueltas === '') return null;
+    foreach ([$enteras, $sueltas] as $n) {
+        if ($n !== '' && !ctype_digit($n)) return false;
+    }
+    return (int)$enteras * $porCompra + (int)$sueltas;
+}

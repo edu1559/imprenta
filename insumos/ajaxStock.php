@@ -1,6 +1,7 @@
 <?php
 include_once(__DIR__ . '/../sesion.php');
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/comunInsumos.php');
 
 exigirPermisoAjax('insumos/stock.php');
 $idUsuario = (int)$_SESSION['idUsuario'];
@@ -19,18 +20,6 @@ function pedidoDeCompra($conn, $idPedido) {
     $stmt->bind_param('i', $idPedido);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();
-}
-
-// Cantidad del formulario en unidad de uso: enteras (resmas) × lo que trae cada una + sueltas
-// (hojas). null si las dos están vacías; false si alguna no es un entero >= 0.
-function cantidadDelFormulario($datos, $porCompra) {
-    $enteras = trim((string)($datos['enteras'] ?? ''));
-    $sueltas = trim((string)($datos['sueltas'] ?? ''));
-    if ($enteras === '' && $sueltas === '') return null;
-    foreach ([$enteras, $sueltas] as $n) {
-        if ($n !== '' && !ctype_digit($n)) return false;
-    }
-    return (int)$enteras * $porCompra + (int)$sueltas;
 }
 
 // Bloquea el insumo hasta el final de la transacción, así dos cargas a la vez no se pisan el stock.
@@ -132,6 +121,12 @@ case 'deshacer':
     $stmt->execute();
     $ultimo = $stmt->get_result()->fetch_assoc();
     if ((int)$ultimo['id'] !== $id) { $conn->rollback(); echo "❌ Solo se puede deshacer el último movimiento del insumo."; break; }
+    $stmt = $conn->prepare("SELECT 1 FROM pedidosInsumos WHERE idMovimiento = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    if ($stmt->get_result()->fetch_row()) {
+        $conn->rollback(); echo "❌ Este movimiento es de un pedido: se saca desde el pedido, en la pizarra."; break;
+    }
     $stmt = $conn->prepare("DELETE FROM insumosMovimientos WHERE id = ?");
     $stmt->bind_param('i', $id);
     $stmt->execute();

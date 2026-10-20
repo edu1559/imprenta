@@ -35,7 +35,8 @@ $habituales = array_map(fn($p) => ['id' => $p['idProveedor'], 'proveedor' => $p[
 $porCompra = max(1, (int)$insumo['unidadesPorCompra']);
 $unidadCompra = strtolower(plural($insumo['unidadCompra']));
 $unidadUso = strtolower(plural($insumo['unidadUso']));
-const ETIQUETAS_MOVIMIENTO = ['compra' => ['Compra', 'bg-success'], 'salida' => ['Salida', 'bg-secondary'], 'inventario' => ['Recuento', 'bg-primary']];
+const ETIQUETAS_MOVIMIENTO = ['compra' => ['Compra', 'bg-success'], 'salida' => ['Salida', 'bg-secondary'], 'inventario' => ['Recuento', 'bg-primary'],
+                              'pedido' => ['Pedido', 'bg-warning text-dark']];
 ?>
 
 <div class="modal-header bg-dark text-white">

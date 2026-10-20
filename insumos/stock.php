@@ -13,7 +13,7 @@ $insumos = mysqli_fetch_all(mysqli_query($conn, "SELECT i.*, c.nombre AS categor
                                    (SELECT MAX(fecha) FROM insumosMovimientos WHERE idInsumo = i.id AND tipo = 'inventario') AS ultimoInventario,
                                    (SELECT MAX(fecha) FROM insumosMovimientos WHERE idInsumo = i.id AND tipo = 'compra') AS ultimaCompra,
                                    (SELECT -SUM(cantidad) FROM insumosMovimientos
-                                    WHERE idInsumo = i.id AND tipo IN ('salida', 'inventario') AND fecha >= NOW() - INTERVAL " . DIAS_GASTADO . " DAY) AS gastado
+                                    WHERE idInsumo = i.id AND tipo IN ('salida', 'inventario', 'pedido') AND fecha >= NOW() - INTERVAL " . DIAS_GASTADO . " DAY) AS gastado
                             FROM insumos i
                             INNER JOIN insumosCategorias c ON c.id = i.idCategoria
                             WHERE i.controlaStock = 1 AND i.activo = 1
@@ -77,7 +77,7 @@ function fechaCorta($f) { return $f ? date('d/m/y', strtotime($f)) : '-'; }
                         <th>Insumo</th>
                         <th>Hay</th>
                         <th>Mínimo</th>
-                        <th title="Salidas y diferencias de inventario">Gastado (<?= DIAS_GASTADO ?> días)</th>
+                        <th title="Salidas, pedidos y diferencias de inventario">Gastado (<?= DIAS_GASTADO ?> días)</th>
                         <th>Última compra</th>
                         <th>Último recuento</th>
                         <th class="text-end">Cargar</th>

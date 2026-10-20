@@ -119,11 +119,16 @@ case 'guardarInsumo':
     }
     break;
 
-// Solo si no tiene precios cargados; si los tiene, se desactiva (así no se pierde el historial).
+// Solo si nunca se usó (precios, movimientos de stock, pedidos); si no, se desactiva y no se pierde el historial.
 case 'borrarInsumo':
     if (!existe($conn, 'insumos', $id)) { echo "❌ No se encontró el insumo."; break; }
-    if (cuenta($conn, "SELECT COUNT(*) FROM insumosPrecios WHERE idInsumo = ?", $id)) {
-        echo "❌ El insumo tiene precios cargados. Si ya no se usa, destildá \"Activo\" en vez de borrarlo.";
+    $stmt = $conn->prepare("SELECT (SELECT COUNT(*) FROM insumosPrecios WHERE idInsumo = ?)
+                                 + (SELECT COUNT(*) FROM insumosMovimientos WHERE idInsumo = ?)
+                                 + (SELECT COUNT(*) FROM pedidosInsumos WHERE idInsumo = ?)");
+    $stmt->bind_param('iii', $id, $id, $id);
+    $stmt->execute();
+    if ($stmt->get_result()->fetch_row()[0]) {
+        echo "❌ El insumo tiene precios, movimientos de stock o pedidos cargados. Si ya no se usa, destildá \"Activo\" en vez de borrarlo.";
         break;
     }
     $stmt = $conn->prepare("DELETE FROM insumos WHERE id = ?");
