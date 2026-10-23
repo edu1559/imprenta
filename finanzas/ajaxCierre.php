@@ -51,6 +51,8 @@ switch ($opcion) {
         $dif = $montoReal - $montoCalculado;
 
         $anterior = estadoCierreMedios($conn, $idM);
+        // la diferencia se acumula hasta el cierre total del día
+        $dif += diferenciaAcumulada($conn, $anterior[$idM] ?? null);
 
         $stmt = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = NOW() WHERE idMedio = ?");
         $stmt->bind_param('ddi', $montoReal, $dif, $idM);
@@ -68,7 +70,6 @@ switch ($opcion) {
     // -------------------------------------------------------------
     case 'cerrarTodos':
         $medios = json_decode($_POST['medios'], true);
-        $totalDif = (float)$_POST['totalDiferencia'];
 
         // Columnas de la tabla histórica 'cierre': se llaman igual que el
         // medio en cierreMedios.
@@ -83,6 +84,10 @@ switch ($opcion) {
         try {
             $valoresCierre = array_fill_keys($columnasCierre, 0);
             $estadoAnterior = estadoCierreMedios($conn);
+            // Diferencia del día: suma de las diferencias de todos los medios,
+            // incluidas las de sus cierres parciales. Así un pago cargado en
+            // el medio equivocado se compensa (falta en uno, sobra en otro).
+            $totalDif = 0;
 
             $stmtUpd = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = ? WHERE idMedio = ?");
             $stmtNombre = $conn->prepare("SELECT medio FROM cierreMedios WHERE idMedio = ?");
@@ -90,7 +95,8 @@ switch ($opcion) {
             foreach ($medios as $m) {
                 $id = (int)$m['id'];
                 $real = (float)$m['real'];
-                $dif = $real - (float)$m['calc'];
+                $dif = $real - (float)$m['calc'] + diferenciaAcumulada($conn, $estadoAnterior[$id] ?? null);
+                $totalDif += $dif;
 
                 $stmtUpd->bind_param('ddsi', $real, $dif, $ahora, $id);
                 $stmtUpd->execute();
@@ -396,6 +402,15 @@ function estadoCierreMedios($conn, $idMedio = null) {
         $estado[$f['idMedio']] = $f;
     }
     return $estado;
+}
+
+// Diferencia que el medio ya juntó en cierres parciales desde el último
+// cierre total (0 si no tuvo parciales desde entonces).
+function diferenciaAcumulada($conn, $estado) {
+    if (!$estado) return 0;
+    $ultimoTotal = mysqli_fetch_row(mysqli_query($conn, "SELECT MAX(fecha) FROM cierre"))[0];
+    if ($ultimoTotal !== null && $estado['fechaUC'] <= $ultimoTotal) return 0;
+    return (float)$estado['diferenciaUC'];
 }
 
 // Controles comunes antes de borrar, modificar o mover un pago: usuario con

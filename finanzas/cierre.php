@@ -291,7 +291,6 @@ $('#btnCerrarTodos').click(function() {
 
     let datosCierre = [];
     let sumaTotalReal = 0;
-    let sumaTotalCalculado = 0;
 
     // Recorremos cada fila de la tabla de medios para recolectar datos
     $('#tablaCierre tbody tr').each(function() {
@@ -306,7 +305,6 @@ $('#btnCerrarTodos').click(function() {
                 real: real
             });
             sumaTotalReal += real;
-            sumaTotalCalculado += calculado;
         }
     });
 
@@ -315,8 +313,7 @@ $('#btnCerrarTodos').click(function() {
     $.post('finanzas/ajaxCierre.php', {
         opcion: 'cerrarTodos',
         medios: JSON.stringify(datosCierre), // Enviamos el array como JSON
-        totalSuma: sumaTotalReal,
-        totalDiferencia: (sumaTotalReal - sumaTotalCalculado)
+        totalSuma: sumaTotalReal
     }, function(res) {
         alert(res);
         $('#contenido').load('finanzas/cierre.php');

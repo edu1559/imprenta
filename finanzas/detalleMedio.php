@@ -29,7 +29,7 @@ $sql = "SELECT
         INNER JOIN cierreMedios cm ON p.idMedioPago = cm.idMedio
         WHERE p.idMedioPago = $idMedio 
           AND p.fecha >= cm.fechaUC
-        ORDER BY p.fecha DESC";
+        ORDER BY p.monto DESC, p.fecha DESC";
 
 $result = mysqli_query($conn, $sql);
 ?>
