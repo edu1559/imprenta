@@ -184,8 +184,8 @@ case 'guardarComplejidades':
         if ($nombre === '' && $factor === null && !$idNivel) continue;
         if ($nombre === '' || preg_match_all('/./su', $nombre) > 30) { echo "❌ Cada nivel necesita un nombre (hasta 30 letras)."; break 2; }
         if (!$factor || $factor > 9) { echo "❌ El factor de \"$nombre\" tiene que ser un número entre 0 y 9 (1 = valor hora normal)."; break 2; }
-        if (isset($niveles[mb_strtolower($nombre)])) { echo "❌ El nivel \"$nombre\" está repetido."; break 2; }
-        $niveles[mb_strtolower($nombre)] = [$idNivel, $nombre, round($factor, 2)];
+        if (isset($niveles[strtolower($nombre)])) { echo "❌ El nivel \"$nombre\" está repetido."; break 2; }
+        $niveles[strtolower($nombre)] = [$idNivel, $nombre, round($factor, 2)];
     }
     if (!$niveles) { echo "❌ Tiene que quedar al menos un nivel."; break; }
 
