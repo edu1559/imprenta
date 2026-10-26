@@ -124,11 +124,12 @@ case 'borrarInsumo':
     if (!existe($conn, 'insumos', $id)) { echo "❌ No se encontró el insumo."; break; }
     $stmt = $conn->prepare("SELECT (SELECT COUNT(*) FROM insumosPrecios WHERE idInsumo = ?)
                                  + (SELECT COUNT(*) FROM insumosMovimientos WHERE idInsumo = ?)
-                                 + (SELECT COUNT(*) FROM pedidosInsumos WHERE idInsumo = ?)");
-    $stmt->bind_param('iii', $id, $id, $id);
+                                 + (SELECT COUNT(*) FROM pedidosInsumos WHERE idInsumo = ?)
+                                 + (SELECT COUNT(*) FROM procesosInsumos WHERE idInsumo = ?)");
+    $stmt->bind_param('iiii', $id, $id, $id, $id);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()[0]) {
-        echo "❌ El insumo tiene precios, movimientos de stock o pedidos cargados. Si ya no se usa, destildá \"Activo\" en vez de borrarlo.";
+        echo "❌ El insumo tiene precios, movimientos de stock, pedidos o procesos cargados. Si ya no se usa, destildá \"Activo\" en vez de borrarlo.";
         break;
     }
     $stmt = $conn->prepare("DELETE FROM insumos WHERE id = ?");
@@ -171,18 +172,21 @@ case 'guardarMaquina':
     $modelo = textoCampo('modelo', 50);
     $observaciones = textoCampo('observaciones', 255);
     $activo = empty($_POST['activo']) ? 0 : 1;
+    $costoPorUso = str_replace(',', '.', trim($_POST['costoPorUso'] ?? ''));
 
     if ($tipo === null || $nombre === null) { echo "❌ Faltan el tipo o el nombre."; break; }
     if (in_array(false, [$tipo, $nombre, $marca, $modelo, $observaciones], true)) { echo "❌ Algún dato es demasiado largo."; break; }
+    if ($costoPorUso !== '' && (!is_numeric($costoPorUso) || (float)$costoPorUso < 0)) { echo "❌ El costo por uso tiene que ser un número (o quedar vacío)."; break; }
+    $costoPorUso = $costoPorUso === '' ? null : round((float)$costoPorUso, 4);
 
     if ($id === 0) {
-        $stmt = $conn->prepare("INSERT INTO maquinas (tipo, nombre, marca, modelo, observaciones, activo) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param('sssssi', $tipo, $nombre, $marca, $modelo, $observaciones, $activo);
+        $stmt = $conn->prepare("INSERT INTO maquinas (tipo, nombre, marca, modelo, costoPorUso, observaciones, activo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param('ssssdsi', $tipo, $nombre, $marca, $modelo, $costoPorUso, $observaciones, $activo);
         echo $stmt->execute() ? "✅ Máquina cargada." : "❌ Error al guardar.";
     } else {
         if (!existe($conn, 'maquinas', $id)) { echo "❌ No se encontró la máquina."; break; }
-        $stmt = $conn->prepare("UPDATE maquinas SET tipo = ?, nombre = ?, marca = ?, modelo = ?, observaciones = ?, activo = ? WHERE id = ?");
-        $stmt->bind_param('sssssii', $tipo, $nombre, $marca, $modelo, $observaciones, $activo, $id);
+        $stmt = $conn->prepare("UPDATE maquinas SET tipo = ?, nombre = ?, marca = ?, modelo = ?, costoPorUso = ?, observaciones = ?, activo = ? WHERE id = ?");
+        $stmt->bind_param('ssssdsii', $tipo, $nombre, $marca, $modelo, $costoPorUso, $observaciones, $activo, $id);
         echo $stmt->execute() ? "✅ Máquina actualizada." : "❌ Error al guardar.";
     }
     break;
@@ -191,6 +195,10 @@ case 'borrarMaquina':
     if (!existe($conn, 'maquinas', $id)) { echo "❌ No se encontró la máquina."; break; }
     if ($n = cuenta($conn, "SELECT COUNT(*) FROM insumos WHERE idMaquina = ?", $id)) {
         echo "❌ La máquina tiene $n insumos asociados (toner). Si ya no está, destildá \"Activa\" en vez de borrarla.";
+        break;
+    }
+    if ($n = cuenta($conn, "SELECT COUNT(*) FROM procesos WHERE idMaquina = ?", $id)) {
+        echo "❌ La máquina se usa en $n procesos. Si ya no está, destildá \"Activa\" en vez de borrarla.";
         break;
     }
     $stmt = $conn->prepare("DELETE FROM maquinas WHERE id = ?");

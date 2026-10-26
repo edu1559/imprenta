@@ -6,7 +6,7 @@ $conn = conectar();
 
 // Alta o edición de una máquina (?id=).
 $id = (int)($_GET['id'] ?? 0);
-$maquina = ['tipo' => '', 'nombre' => '', 'marca' => '', 'modelo' => '', 'observaciones' => '', 'activo' => 1];
+$maquina = ['tipo' => '', 'nombre' => '', 'marca' => '', 'modelo' => '', 'costoPorUso' => '', 'observaciones' => '', 'activo' => 1];
 if ($id > 0) {
     $stmt = $conn->prepare("SELECT * FROM maquinas WHERE id = ?");
     $stmt->bind_param('i', $id);
@@ -54,6 +54,11 @@ function valor($v) { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES); }
                 <label class="form-label">Modelo:</label>
                 <input type="text" class="form-control" id="maqModelo" maxlength="50" value="<?= valor($maquina['modelo']) ?>">
             </div>
+            <div class="col-md-6">
+                <label class="form-label">Costo por uso $:</label>
+                <input type="number" class="form-control" id="maqCostoPorUso" min="0" step="0.01" value="<?= valor($maquina['costoPorUso'] === null ? '' : (float)$maquina['costoPorUso']) ?>">
+                <div class="form-text">Por copia, corte u hoja: desgaste, service, contador. El toner va aparte (sale de su precio y rendimiento).</div>
+            </div>
             <div class="col-12">
                 <label class="form-label">Observaciones:</label>
                 <input type="text" class="form-control" id="maqObservaciones" maxlength="255" value="<?= valor($maquina['observaciones']) ?>">
@@ -91,6 +96,7 @@ $(document).ready(function() {
             nombre: $('#maqNombre').val(),
             marca: $('#maqMarca').val(),
             modelo: $('#maqModelo').val(),
+            costoPorUso: $('#maqCostoPorUso').val(),
             observaciones: $('#maqObservaciones').val(),
             activo: $('#maqActivo').is(':checked') ? 1 : ''
         }, respuesta);

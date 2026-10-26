@@ -2,10 +2,12 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirPermisoPagina('insumos/maquinas.php');
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/comunProcesos.php');
 $conn = conectar();
 
 // Máquinas de la imprenta, agrupadas por tipo. El toner se engancha a la máquina en que se usa.
-$maquinas = mysqli_fetch_all(mysqli_query($conn, "SELECT m.*, (SELECT COUNT(*) FROM insumos i WHERE i.idMaquina = m.id) AS insumos
+$maquinas = mysqli_fetch_all(mysqli_query($conn, "SELECT m.*, (SELECT COUNT(*) FROM insumos i WHERE i.idMaquina = m.id) AS insumos,
+                                                         (SELECT COUNT(*) FROM procesos p WHERE p.idMaquina = m.id) AS procesos
                                                   FROM maquinas m
                                                   ORDER BY m.activo DESC, m.tipo, m.nombre"), MYSQLI_ASSOC);
 ?>
@@ -27,7 +29,7 @@ $maquinas = mysqli_fetch_all(mysqli_query($conn, "SELECT m.*, (SELECT COUNT(*) F
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
-                    <tr><th>Tipo</th><th>Nombre</th><th>Marca y modelo</th><th>Observaciones</th><th class="text-center">Insumos</th><th></th></tr>
+                    <tr><th>Tipo</th><th>Nombre</th><th>Marca y modelo</th><th>Observaciones</th><th class="text-end">Costo por uso</th><th class="text-center">Insumos</th><th class="text-center">Procesos</th><th></th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($maquinas as $m): ?>
@@ -39,7 +41,9 @@ $maquinas = mysqli_fetch_all(mysqli_query($conn, "SELECT m.*, (SELECT COUNT(*) F
                         </td>
                         <td class="small"><?= htmlspecialchars(trim($m['marca'] . ' ' . $m['modelo'])) ?></td>
                         <td class="small"><?= htmlspecialchars($m['observaciones'] ?? '') ?></td>
+                        <td class="text-end small"><?= $m['costoPorUso'] === null ? '-' : fmtPrecioUnidad($m['costoPorUso']) ?></td>
                         <td class="text-center small"><?= (int)$m['insumos'] ?: '-' ?></td>
+                        <td class="text-center small"><?= (int)$m['procesos'] ?: '-' ?></td>
                         <td class="text-end"><button type="button" class="btn btn-outline-dark btn-sm" title="Editar"><i class="bi bi-pencil"></i></button></td>
                     </tr>
                     <?php endforeach; ?>
