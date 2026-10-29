@@ -14,6 +14,18 @@ exigirTrabajadorAjax();
         return normalizarCelular($texto) ?? false;
     }
     const ERROR_CELULAR = 'No se entiende el celular. Escribilo con la característica, por ejemplo 351 532-9898.';
+
+    // CUIT del formulario: con 11 dígitos queda como 20-12345678-9; otro formato se guarda tal cual
+    // (hay CUIT viejos cargados distinto). Vacío queda NULL.
+    function cuitDelFormulario() {
+        $texto = trim($_GET['cuit'] ?? '');
+        if ($texto === '') return null;
+        $digitos = preg_replace('/\D/', '', $texto);
+        if (strlen($digitos) === 11) {
+            return substr($digitos, 0, 2) . '-' . substr($digitos, 2, 8) . '-' . substr($digitos, 10);
+        }
+        return substr($texto, 0, 20);
+    }
     
     if(isset($_GET['opcion'])){
         $opcion = $_GET['opcion'];
@@ -62,6 +74,7 @@ exigirTrabajadorAjax();
         $notas    = trim($_GET['notas'] ?? '');
         $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
         $celular  = celularDelFormulario();
+        $cuit     = cuitDelFormulario();
 
         header('Content-Type: application/json');
 
@@ -88,9 +101,9 @@ exigirTrabajadorAjax();
         }
 
         $celular = $celular === '' ? null : $celular;
-        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, celular, correo, notas, esEmpresa, fechacarga)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmtIns->bind_param("ssssssi", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa);
+        $stmtIns = $conn->prepare("INSERT INTO contactos (apellido, nombre, telefono, celular, correo, cuit, notas, esEmpresa, fechacarga)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmtIns->bind_param("sssssssi", $apellido, $nombre, $telefono, $celular, $correo, $cuit, $notas, $esEmpresa);
         try {
             $stmtIns->execute();
             echo json_encode(['ok' => true, 'id' => $stmtIns->insert_id]);
@@ -104,9 +117,16 @@ exigirTrabajadorAjax();
        case 'borraContacto':
         
             
-            $id= $_GET['idContacto'];
-            
-            $sql = "delete from contactos 
+            $id = (int)$_GET['idContacto'];
+
+            // Con algún pedido (aunque esté anulado) no se borra: los pedidos quedarían sin cliente.
+            $tienePedidos = mysqli_fetch_row(mysqli_query($conn, "select count(*) from pedidos where idContacto = $id"))[0];
+            if ($tienePedidos > 0) {
+                echo 'No se puede borrar: el contacto tiene pedidos.';
+                break;
+            }
+
+            $sql = "delete from contactos
                     where id=$id";
                     
      
@@ -128,6 +148,7 @@ exigirTrabajadorAjax();
         $esEmpresa = empty($_GET['esEmpresa']) ? 0 : 1;
         $esTercerizado = empty($_GET['esTercerizado']) ? 0 : 1;
         $celular = celularDelFormulario();
+        $cuit = cuitDelFormulario();
 
         if ($celular === false) {
             echo ERROR_CELULAR;
@@ -136,9 +157,9 @@ exigirTrabajadorAjax();
         $celular = $celular === '' ? null : $celular;
 
         $stmt = $conn->prepare("UPDATE contactos SET apellido = ?, nombre = ?, telefono = ?, celular = ?,
-                                       correo = ?, notas = ?, esEmpresa = ?, esTercerizado = ?
+                                       correo = ?, cuit = ?, notas = ?, esEmpresa = ?, esTercerizado = ?
                                 WHERE id = ?");
-        $stmt->bind_param("ssssssiii", $apellido, $nombre, $telefono, $celular, $correo, $notas, $esEmpresa, $esTercerizado, $id);
+        $stmt->bind_param("sssssssiii", $apellido, $nombre, $telefono, $celular, $correo, $cuit, $notas, $esEmpresa, $esTercerizado, $id);
         if ($stmt->execute()) {
             echo "Se actualizo correctamene"; // Este mensaje será enviado al JavaScript
         } else {

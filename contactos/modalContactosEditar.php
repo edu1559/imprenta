@@ -61,28 +61,36 @@ $esTercerizado = $myrow["esTercerizado"];
                 </div>
             </div>
 
-            <div class="form-check mb-3">
-                <input type="checkbox" class="form-check-input" id="esEmpresa1" <?php echo $esEmpresa ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="esEmpresa1">Es una empresa o institución (el nombre es la persona de contacto)</label>
-            </div>
-
-            <div class="form-check mb-3">
-                <input type="checkbox" class="form-check-input" id="esTercerizado1" <?php echo $esTercerizado ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="esTercerizado1">Es un proveedor al que le mandamos trabajos (aparece en Producción &gt; Tercerizados)</label>
+            <div class="mb-3">
+                <div class="form-check form-check-inline" title="Empresa o institución: el nombre es la persona de contacto">
+                    <input type="checkbox" class="form-check-input" id="esEmpresa1" <?php echo $esEmpresa ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="esEmpresa1">Empresa</label>
+                </div>
+                <div class="form-check form-check-inline" title="Le mandamos trabajos: aparece en Producción &gt; Tercerizados">
+                    <input type="checkbox" class="form-check-input" id="esTercerizado1" <?php echo $esTercerizado ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="esTercerizado1">Proveedor</label>
+                </div>
             </div>
 
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label for="celular1" class="form-label"><i class="bi bi-whatsapp text-success"></i> Celular:</label>
                     <input type="text" class="form-control" id="celular1" placeholder="351 532-9898" value="<?php echo htmlspecialchars($celular); ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label for="telefono1" class="form-label">Teléfono fijo / otro:</label>
                     <input type="text" class="form-control" id="telefono1" maxlength="50" value="<?php echo htmlspecialchars($telefono); ?>">
                 </div>
-                <div class="col-md-4">
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-7">
                     <label for="correo1" class="form-label">Correo:</label>
                     <input type="email" class="form-control" id="correo1" maxlength="100" value="<?php echo htmlspecialchars($correo); ?>">
+                </div>
+                <div class="col-md-5">
+                    <label for="cuit1" class="form-label">CUIT / CUIL:</label>
+                    <input type="text" class="form-control" id="cuit1" maxlength="20" placeholder="20-12345678-9" value="<?php echo htmlspecialchars((string)$cuit); ?>">
                 </div>
             </div>
 
@@ -116,6 +124,7 @@ $esTercerizado = $myrow["esTercerizado"];
             celular: $('#celular1').val().trim(),
             telefono: $('#telefono1').val(),
             correo: $('#correo1').val(),
+            cuit: $('#cuit1').val().trim(),
             notas: $('#notas1').val()
         }, function(res) {
             // Con error (por ejemplo un celular que no se entiende) el modal queda abierto.

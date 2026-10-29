@@ -31,26 +31,33 @@ $conn = conectarPDO();
             </div>
 
             <div class="row g-3 mb-3">
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label small fw-bold">Celular (WhatsApp):</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text"><i class="bi bi-whatsapp text-success"></i></span>
                         <input type="text" class="form-control shadow-sm" id="celular1" placeholder="351 532-9898">
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label small fw-bold">Teléfono fijo / otro:</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text"><i class="bi bi-telephone"></i></span>
                         <input type="text" class="form-control shadow-sm" id="telefono1" maxlength="50">
                     </div>
                 </div>
-                <div class="col-md-4">
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-7">
                     <label class="form-label small fw-bold">Correo Electrónico:</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text"><i class="bi bi-envelope"></i></span>
                         <input type="email" class="form-control shadow-sm" id="correo1" maxlength="100">
                     </div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold">CUIT / CUIL:</label>
+                    <input type="text" class="form-control form-control-sm shadow-sm" id="cuit1" maxlength="20" placeholder="20-12345678-9">
                 </div>
             </div>
 
@@ -93,6 +100,7 @@ $conn = conectarPDO();
             celular: $('#celular1').val().trim(),
             telefono: $('#telefono1').val().trim(),
             correo: $('#correo1').val().trim(),
+            cuit: $('#cuit1').val().trim(),
             notas: $('#notas1').val()
         }, function(resp) {
             boton.prop('disabled', false);
