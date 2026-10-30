@@ -4,8 +4,9 @@ exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
 $conn = conectar();
 $idPago = (int)$_GET['idPago'];
-// Pantalla a recargar después de guardar: Cierre (por defecto) o Pedidos.
-$volver = (($_GET['volver'] ?? '') === 'pedidos') ? 'pedidos/pedidos.php' : 'finanzas/cierre.php';
+// Pantalla a recargar después de guardar: Cierre (por defecto), Pedidos o Pagos.
+$pantallas = ['pedidos' => 'pedidos/pedidos.php', 'pagos' => 'finanzas/pagos.php'];
+$volver = $pantallas[$_GET['volver'] ?? ''] ?? 'finanzas/cierre.php';
 
 $sql = "SELECT p.*, concat(c.apellido, ' ', c.nombre) as contacto 
         FROM pagos p 
@@ -73,7 +74,8 @@ $('#btnGuardarCambioPago').on('click', function() {
         // Si no se guardó (sin permiso, caja cerrada, etc.) dejamos el modal abierto.
         if (r.trim().indexOf('✅') !== 0) return;
         $('#modalUniversal').modal('hide');
-        $('#contenido').load('<?php echo $volver; ?>');
+        // Pagos vuelve con el mismo filtro que tenía
+        $('#contenido').load(<?php echo $volver === 'finanzas/pagos.php' ? "window.urlPagos || " : ''; ?>'<?php echo $volver; ?>');
     });
 });
 </script>
