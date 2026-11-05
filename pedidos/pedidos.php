@@ -54,6 +54,9 @@ $cantidades = mysqli_fetch_assoc(mysqli_query($conn, "SELECT
 const MAX_PEDIDOS_CONTACTO = 100;
 $idContactoVer = isset($_GET['idContacto']) ? (int)$_GET['idContacto'] : 0;
 $contactoVer = null;
+// Filtro rápido elegido; sin búsqueda ni contacto, por defecto se ven los "Sin Terminar"
+$hayBusqueda = !empty($_GET['cadena']) || $idContactoVer > 0;
+$opcionActiva = isset($_GET['opcion']) ? $_GET['opcion'] : ($hayBusqueda ? null : 'sinTerminar');
 if ($idContactoVer > 0) {
     $abierto = "NOT (p.estadoProduccion = 3 AND p.estadoEntrega = 3 AND p.estadoPago = 3)";
     $contactoVer = mysqli_fetch_assoc(mysqli_query($conn, "SELECT CONCAT(c.apellido, ' ', COALESCE(c.nombre, '')) AS contacto,
@@ -92,14 +95,14 @@ if ($idContactoVer > 0) {
 
  <!-- botones de búsqueda  -->
   
-        <div class="col-md-5 container-fluid mb-3"> 
-            <div class="input-group form-inline d-flex">  
-                <button type="button" class="btn btn-outline-success btnOpciones" data-valor="ultimos">Últimos (<?= (int)$cantidades['abiertos'] ?>)</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinTerminar">Sin Terminar (<?= (int)$cantidades['sinTerminar'] ?>)</button>
-                <button type="button" class="btn btn-outline-danger btnOpciones"  data-valor="sinPagar">Sin Pagar (<?= (int)$cantidades['sinPagar'] ?>)</button>
-                <button type="button" class="btn btn-outline-primary btnOpciones"  data-valor="sinEntregar">Sin Entregar (<?= (int)$cantidades['sinEntregar'] ?>)</button>
+        <div class="col-md container-fluid mb-3">
+            <div class="input-group form-inline d-flex">
+                <button type="button" class="btn btn-outline-primary btnOpciones<?= $opcionActiva == 'sinTerminar' ? ' active' : '' ?>"  data-valor="sinTerminar">Sin Terminar (<?= (int)$cantidades['sinTerminar'] ?>)</button>
+                <button type="button" class="btn btn-outline-danger btnOpciones<?= $opcionActiva == 'sinPagar' ? ' active' : '' ?>"  data-valor="sinPagar">Sin Pagar (<?= (int)$cantidades['sinPagar'] ?>)</button>
+                <button type="button" class="btn btn-outline-primary btnOpciones<?= $opcionActiva == 'sinEntregar' ? ' active' : '' ?>"  data-valor="sinEntregar">Sin Entregar (<?= (int)$cantidades['sinEntregar'] ?>)</button>
+                <button type="button" class="btn btn-outline-success btnOpciones<?= $opcionActiva == 'ultimos' ? ' active' : '' ?>" data-valor="ultimos">Últimos (<?= (int)$cantidades['abiertos'] ?>)</button>
                 <?php if ($cantidades['webPendientes'] > 0) { // pedidos que hicieron clientes desde la web y nadie revisó ?>
-                <button type="button" class="btn btn-warning btnOpciones" data-valor="webPendientes"><i class="bi bi-globe"></i> Web pendientes (<?= (int)$cantidades['webPendientes'] ?>)</button>
+                <button type="button" class="btn btn-warning btnOpciones<?= $opcionActiva == 'webPendientes' ? ' active' : '' ?>" data-valor="webPendientes"><i class="bi bi-globe"></i> Web pendientes (<?= (int)$cantidades['webPendientes'] ?>)</button>
                 <?php } ?>
             </div>
         </div>
@@ -206,7 +209,7 @@ if ($idContactoVer > 0) {
                     on u.id = p.idUsuario";
 
     $cadena = (isset($_GET['cadena']) && !empty($_GET['cadena'])) ? mysqli_real_escape_string($conn, $_GET['cadena']) : null;
-    $opcion = isset($_GET['opcion']) ? $_GET['opcion'] : null;
+    $opcion = $opcionActiva;
 
     if ($idContactoVer > 0) {
         // Todos los pedidos de un contacto, editables (botón de la última columna):
