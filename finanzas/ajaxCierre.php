@@ -14,7 +14,7 @@ switch ($opcion) {
     // Reasignar el medio de pago de un pago puntual.
     // -------------------------------------------------------------
     case 'cambiaMedio':
-        $pago = validarModificacionPago($conn, (int)$_POST['idPago']);
+        $pago = validarModificacionPago($conn, (int)$_POST['idPago'], true);
         if (!$pago) break;
         $idMedio = (int)$_POST['idMedio'];
         if ($idMedio === (int)$pago['idMedioPago']) {
@@ -490,9 +490,10 @@ function diferenciaAcumulada($conn, $estado) {
 }
 
 // Controles comunes antes de borrar, modificar o mover un pago: usuario con
-// permiso, motivo, y que ni el pedido ni la caja del pago estén cerrados.
+// permiso, motivo, y que ni el pedido ni la caja del pago estén cerrados
+// ($soloMedio: para cambiar solo el medio, ver bloqueoCambioMedio).
 // Devuelve el pago, o null después de mostrar el error.
-function validarModificacionPago($conn, $idPago) {
+function validarModificacionPago($conn, $idPago, $soloMedio = false) {
     if (!puedeModificar($conn)) {
         echo "No tenés permiso para modificar pagos. Tiene que ser un administrador o un usuario habilitado, logueado.";
         return null;
@@ -507,7 +508,7 @@ function validarModificacionPago($conn, $idPago) {
         echo "No se encontró el pago.";
         return null;
     }
-    $bloqueo = bloqueoPago($pago);
+    $bloqueo = $soloMedio ? bloqueoCambioMedio($pago, esAdministrador($conn)) : bloqueoPago($pago);
     if ($bloqueo) {
         echo $bloqueo;
         return null;

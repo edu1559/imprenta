@@ -5,6 +5,7 @@ include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
 $conn = conectar();
 $puedeModificar = puedeModificar($conn);
+$esAdmin = esAdministrador($conn);
 
 // Filtro: caja abierta (por defecto), un día, o un cierre total.
 $filtro = $_GET['filtro'] ?? 'abierta';
@@ -185,6 +186,8 @@ function textoFiltro($filtro, $fechaDia, $cierreSel) {
                         } else {
                             $bloqueo = null;
                         }
+                        // El medio un administrador lo puede cambiar aunque el pedido esté cerrado (caja abierta)
+                        $bloqueoMedio = $puedeModificar ? bloqueoCambioMedio($f + ['cajaCerrada' => (int)$f['cajaCerrada'] === 1], $esAdmin) : $bloqueo;
                     ?>
                         <tr class="<?php echo $egreso ? 'egreso' : ''; ?>"
                             data-id="<?php echo $f['idPago']; ?>"
@@ -205,7 +208,7 @@ function textoFiltro($filtro, $fechaDia, $cierreSel) {
                             </td>
                             <td>
                                 <select class="form-select form-select-sm selMedio" data-original="<?php echo $f['idMedioPago']; ?>"
-                                    <?php echo $bloqueo ? 'disabled title="' . htmlspecialchars($bloqueo) . '"' : ''; ?>>
+                                    <?php echo $bloqueoMedio ? 'disabled title="' . htmlspecialchars($bloqueoMedio) . '"' : ''; ?>>
                                     <?php foreach ($listaMedios as $m): ?>
                                         <option value="<?php echo $m['id']; ?>" <?php echo $m['id'] == $f['idMedioPago'] ? 'selected' : ''; ?>><?php echo $m['medio']; ?></option>
                                     <?php endforeach; ?>

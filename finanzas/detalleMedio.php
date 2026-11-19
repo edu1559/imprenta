@@ -4,6 +4,7 @@ include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
 $conn = conectar();
 $puedeModificar = puedeModificar($conn);
+$esAdmin = esAdministrador($conn);
 
 $idMedio = $_GET['idMedio'] ?? die("Falta ID");
 
@@ -90,6 +91,7 @@ $movimientos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     } else {
                         $bloqueo = null;
                     }
+                    $bloqueoMedio = $puedeModificar ? bloqueoCambioMedio($f + ['cajaCerrada' => false], $esAdmin) : $bloqueo;
             ?>
             <tr class="<?php echo $claseFila; ?>">
                 <td class="text-muted small"><?php echo $f['hora']; ?></td>
@@ -105,7 +107,7 @@ $movimientos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <?php echo $simbolo; ?>$<?php echo number_format($f['monto'], 0, ',', '.'); ?>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm selMedioRapido" style="font-size: 0.7rem; padding: 0.1rem 0.3rem;" data-original="<?php echo $idMedio; ?>" <?php echo $bloqueo ? 'disabled title="' . htmlspecialchars($bloqueo) . '"' : ''; ?>>
+                    <select class="form-select form-select-sm selMedioRapido" style="font-size: 0.7rem; padding: 0.1rem 0.3rem;" data-original="<?php echo $idMedio; ?>" <?php echo $bloqueoMedio ? 'disabled title="' . htmlspecialchars($bloqueoMedio) . '"' : ''; ?>>
                         <?php foreach($listaMedios as $m): ?>
                             <option value="<?php echo $m['id']; ?>" <?php echo ($m['id'] == $idMedio) ? 'selected' : ''; ?>>
                                 <?php echo $m['medio']; ?>

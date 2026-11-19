@@ -367,8 +367,9 @@ if ($idContactoVer > 0) {
                             // Solo mostramos el botón si NO está terminado
                             echo "<button class='btn btn-outline-dark btnPedidoEditar'> <i class='bi bi-pencil'> </i></button>";
                         } else {
-                            // Opcional: Mostrar un candado o dejar vacío
-                            echo "<i class='bi bi-lock-fill text-muted' title='Pedido Cerrado'></i>";
+                            // Cerrado: abre Editar pedido solo para ver (no deja guardar), con el
+                            // Historial y, para un administrador, el botón Reabrir pedido.
+                            echo "<button class='btn btn-outline-secondary btnPedidoEditar' title='Pedido cerrado: ver, historial o reabrir (administrador)'> <i class='bi bi-lock-fill'> </i></button>";
                         }
                         echo "</td>";
 

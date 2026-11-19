@@ -7,6 +7,7 @@ $conn = conectar();
 
 $idPedido = (int)($_GET['idPedido'] ?? die("Error: ID no recibido"));
 $puedeModificar = puedeModificar($conn);
+$esAdmin = esAdministrador($conn);
 
 // 1. Cargamos medios de pago
 $resMedios = mysqli_query($conn, "SELECT id, medio FROM mediosPago WHERE visible = 1");
@@ -165,6 +166,8 @@ $resHistorial = mysqli_query($conn, $sqlPagos);
                 <?php while($h = mysqli_fetch_assoc($resHistorial)):
                     $cajaCerrada = fechaEnCajaCerrada($conn, $h['fecha'], (int)$h['idMedioPago']);
                     $bloqueo = bloqueoPago($p + ['cajaCerrada' => $cajaCerrada]);
+                    // pedido cerrado con la caja abierta: un administrador igual puede cambiarle el medio
+                    $soloMedio = $bloqueo && !bloqueoCambioMedio($p + ['cajaCerrada' => $cajaCerrada], $esAdmin);
                 ?>
                 <tr>
                     <td><?php echo date('d/m/Y H:i', strtotime($h['fecha'])); ?></td>
@@ -174,7 +177,14 @@ $resHistorial = mysqli_query($conn, $sqlPagos);
                     <td><?php echo $cajaCerrada ? '<span class="badge bg-secondary">cerrada</span>' : '<span class="badge bg-success">abierta</span>'; ?></td>
                     <?php if ($puedeModificar): ?>
                     <td class="text-end">
-                        <?php if ($bloqueo): ?>
+                        <?php if ($soloMedio): ?>
+                            <select class="form-select form-select-sm d-inline-block w-auto py-0 selMedioPagoPedido" data-id="<?php echo $h['id']; ?>" data-original="<?php echo $h['idMedioPago']; ?>"
+                                    title="El pedido está cerrado: como administrador podés cambiar solo el medio">
+                                <?php foreach ($medios as $m): ?>
+                                    <option value="<?php echo $m['id']; ?>" <?php echo $m['id'] == $h['idMedioPago'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['medio']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php elseif ($bloqueo): ?>
                             <i class="bi bi-lock text-muted" title="<?php echo htmlspecialchars($bloqueo); ?>"></i>
                         <?php else: ?>
                             <button class="btn btn-outline-primary btn-sm py-0 btnEditarPagoPedido" data-id="<?php echo $h['id']; ?>" title="Modificar"><i class="bi bi-pencil"></i></button>
@@ -197,6 +207,21 @@ function recargarPagosPedido() {
 
 $('.btnEditarPagoPedido').click(function() {
     $('#modalUniversal .modal-content').load('finanzas/modalEditarPago.php?volver=pedidos&idPago=' + $(this).data('id'));
+});
+
+// Cambiar solo el medio de un pago de un pedido cerrado (administrador, caja abierta)
+$('.selMedioPagoPedido').change(function() {
+    let $sel = $(this);
+    let motivo = prompt('Vas a mover el pago #' + $sel.data('id') + ' a ' + $sel.find('option:selected').text().trim() + '.\n\nMotivo (obligatorio):');
+    if (motivo === null || motivo.trim() === '') {
+        if (motivo !== null) alert('Tenés que indicar el motivo.');
+        $sel.val($sel.data('original'));
+        return;
+    }
+    $.post('finanzas/ajaxCierre.php', { opcion: 'cambiaMedio', idPago: $sel.data('id'), idMedio: $sel.val(), motivo: motivo.trim() }, function(r) {
+        if (r.trim() !== 'OK') alert(r);
+        recargarPagosPedido();
+    });
 });
 
 $('.btnBorrarPagoPedido').click(function() {

@@ -134,6 +134,15 @@ function bloqueoPago($pago) {
     return null;
 }
 
+// Motivo por el que no se le puede cambiar el MEDIO a un pago (null si se puede). Es más
+// permisivo que bloqueoPago: cambiar el medio no cambia cuánto se cobró, así que un
+// administrador puede hacerlo aunque el pedido esté cerrado, mientras la caja siga abierta.
+function bloqueoCambioMedio($pago, $esAdmin) {
+    if ($pago['cajaCerrada']) return "El pago ya está en una caja cerrada. Usá un pago de ajuste.";
+    if (pedidoCerrado($pago) && !$esAdmin) return "El pedido está cerrado: solo un administrador puede cambiarle el medio a un pago.";
+    return null;
+}
+
 function describirPago($pago) {
     return '$' . number_format((float)$pago['monto'], 2, ',', '.') . ' en ' . ($pago['medio'] ?? $pago['idMedioPago'])
          . ' del ' . date('d/m/Y H:i', strtotime($pago['fecha']));
