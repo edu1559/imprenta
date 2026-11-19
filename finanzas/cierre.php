@@ -2,6 +2,7 @@
 include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
+include_once(__DIR__ . '/../auditoria.php');
 $conn = conectar();
 
 // 1. Obtener Medios de Pago Activos
@@ -16,6 +17,8 @@ $sqlCierre = "SELECT cm.idMedio, cm.medio, cm.fechaUC, cm.montoUC, cm.diferencia
               INNER JOIN mediosPago mp ON cm.idMedio = mp.id
               WHERE mp.visible = 1";
 $resCierre = mysqli_query($conn, $sqlCierre);
+// Movimientos entre medios (retiros, depósitos, dólares) de la caja abierta
+$movMedios = movimientosCajaAbierta($conn);
 
 while ($row = mysqli_fetch_assoc($resCierre)) {
     $idM = $row['idMedio'];
@@ -30,14 +33,16 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                WHERE p.idMedioPago = $idM AND p.fecha >= '$fechaUC'";
     $resSum = mysqli_query($conn, $sqlSum);
     $datosNuevos = mysqli_fetch_assoc($resSum);
+    $mov = $movMedios[$idM] ?? ['cant' => 0, 'neto' => 0];
 
     $cierre[$idM] = [
         'medio' => $row['medio'],
         'fechaUC' => $row['fechaUC'],
         'montoUC' => (float)$row['montoUC'],
         'difUC' => (float)$row['diferenciaUC'],
-        'cantOp' => (int)$datosNuevos['cant'],
-        'montoCalculado' => (float)($datosNuevos['total'] ?? 0)
+        'cantOp' => (int)$datosNuevos['cant'] + $mov['cant'],
+        'netoMov' => $mov['neto'],
+        'montoCalculado' => (float)($datosNuevos['total'] ?? 0) + $mov['neto']
     ];
 }
 ?>
@@ -53,9 +58,14 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
 <div class="container-fluid p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold"><i class="bi bi-bank text-success me-2"></i>Cierre de Caja</h2>
-        <button id="btnCerrarTodos" class="btn btn-success btn-lg shadow">
-            <i class="bi bi-check-all"></i> Cierre Total del Día
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-lg" data-bs-toggle="modal" data-bs-target="#modalMovimiento">
+                <i class="bi bi-arrow-left-right"></i> Movimiento entre medios
+            </button>
+            <button id="btnCerrarTodos" class="btn btn-success btn-lg shadow">
+                <i class="bi bi-check-all"></i> Cierre Total del Día
+            </button>
+        </div>
     </div>
 
     <div class="row g-4">
@@ -98,7 +108,14 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                     <td class="dato"><?php echo date('d/m/y', strtotime($v['fechaUC'])); ?></td>
                                     <td class="text-end dato">$<?php echo number_format($v['montoUC'], 0, ',', '.'); ?></td>
                                     <td class="text-center"><span class="badge bg-secondary rounded-pill"><?php echo $v['cantOp']; ?></span></td>
-                                    <td class="text-end dato"><?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?></td>
+                                    <td class="text-end dato">
+                                        <?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?>
+                                        <?php if ($v['netoMov'] != 0): ?>
+                                            <div class="small text-info" title="Retiros, depósitos y dólares: ya están sumados en Movimientos">
+                                                <i class="bi bi-arrow-left-right"></i> <?php echo ($v['netoMov'] > 0 ? '+$' : '-$') . number_format(abs($v['netoMov']), 0, ',', '.'); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-end saldo text-primary">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?></td>
                                     <td style="width: 190px;">
                                         <div class="input-group input-group-sm">
@@ -187,6 +204,57 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                 <div class="card-body p-0" id="cuerpoDetalleMovimientos"></div>
             </div>
         </div>
+        <div class="modal fade" id="modalMovimiento" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-left-right me-1"></i>Movimiento entre medios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Plata que pasa de un medio a otro: retiro del banco, depósito, compra de dólares.
+                    No es venta ni compra: resta al origen y suma al destino.</p>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small fw-bold mb-1">Sale de</label>
+                        <select id="movOrigen" class="form-select">
+                            <?php foreach ($cierre as $id => $v): ?><option value="<?php echo $id; ?>" <?php echo $v['medio'] === 'BcoMacro' ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['medio']); ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-bold mb-1">Entra a</label>
+                        <select id="movDestino" class="form-select">
+                            <?php foreach ($cierre as $id => $v): ?><option value="<?php echo $id; ?>" <?php echo $v['medio'] === 'efectivo' ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['medio']); ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <label class="form-label small fw-bold mb-1">Monto en pesos</label>
+                <div class="input-group mb-2">
+                    <span class="input-group-text">$</span>
+                    <input type="text" inputmode="numeric" id="movMonto" class="form-control text-end fw-bold" placeholder="0">
+                </div>
+                <div id="movDolares" class="row g-2 mb-2" style="display:none;">
+                    <div class="col">
+                        <label class="form-label small mb-1">Dólares (US$)</label>
+                        <input type="text" inputmode="decimal" id="movUsd" class="form-control text-end" placeholder="opcional">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Cotización ($ por US$)</label>
+                        <input type="text" inputmode="decimal" id="movCotiz" class="form-control text-end" placeholder="opcional">
+                    </div>
+                    <div class="col-12 small text-muted">En dólares se registra lo que valen en pesos (el monto de arriba). US$ y cotización quedan como dato.</div>
+                </div>
+                <label class="form-label small fw-bold mb-1">Nota</label>
+                <input type="text" id="movNota" class="form-control" maxlength="255" placeholder="Ej: retiro cajero, compra de dólares">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarMovimiento">Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
         <div class="modal fade" id="modalEfectivo" tabindex="-1">
     <div class="modal-dialog modal-md">
         <div class="modal-content">
@@ -317,6 +385,55 @@ $('#btnCerrarTodos').click(function() {
     }, function(res) {
         alert(res);
         $('#contenido').load('finanzas/cierre.php');
+    });
+});
+// ---- Movimiento entre medios ----
+// "1.234.567,50" -> 1234567.5
+function numeroAR(texto) {
+    return parseFloat(String(texto).trim().replace(/\./g, '').replace(',', '.')) || 0;
+}
+function mostrarCamposDolares() {
+    let nombres = [$('#movOrigen option:selected').text(), $('#movDestino option:selected').text()];
+    $('#movDolares').toggle(nombres.includes('dolares'));
+}
+$('#movOrigen, #movDestino').change(mostrarCamposDolares);
+// con US$ y cotización completos, el monto en pesos se calcula solo
+$('#movUsd, #movCotiz').on('input', function() {
+    let usd = numeroAR($('#movUsd').val()), cotiz = numeroAR($('#movCotiz').val());
+    if (usd > 0 && cotiz > 0) $('#movMonto').val(Math.round(usd * cotiz).toLocaleString('es-AR'));
+});
+$('#movMonto').on('blur', function() {
+    let n = numeroAR($(this).val());
+    if (n) $(this).val(n.toLocaleString('es-AR', {maximumFractionDigits: 2}));
+});
+$('#btnGuardarMovimiento').click(function() {
+    let origen = $('#movOrigen').val(), destino = $('#movDestino').val();
+    let monto = numeroAR($('#movMonto').val());
+    if (origen === destino) { alert('El origen y el destino tienen que ser distintos.'); return; }
+    if (monto <= 0) { alert('Falta el monto.'); return; }
+    let texto = 'Pasar $' + monto.toLocaleString('es-AR') + ' de ' + $('#movOrigen option:selected').text()
+              + ' a ' + $('#movDestino option:selected').text() + '?';
+    if (!confirm(texto)) return;
+
+    let $btn = $(this).prop('disabled', true);
+    $.post('finanzas/ajaxCierre.php', {
+        opcion: 'movimientoMedios',
+        idMedioOrigen: origen,
+        idMedioDestino: destino,
+        monto: monto,
+        usd: $('#movDolares').is(':visible') && $('#movUsd').val().trim() !== '' ? numeroAR($('#movUsd').val()) : '',
+        cotizacion: $('#movDolares').is(':visible') && $('#movCotiz').val().trim() !== '' ? numeroAR($('#movCotiz').val()) : '',
+        nota: $('#movNota').val()
+    }, function(res) {
+        alert(res);
+        if (res.indexOf('✅') === 0) {
+            $('#modalMovimiento').modal('hide');
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('overflow', '');
+            $('#contenido').load('finanzas/cierre.php');
+        } else {
+            $btn.prop('disabled', false);
+        }
     });
 });
 </script>

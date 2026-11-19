@@ -32,6 +32,22 @@ $sql = "SELECT
         ORDER BY p.monto DESC, p.fecha DESC";
 
 $result = mysqli_query($conn, $sql);
+
+// Movimientos entre medios de la caja abierta de este medio (retiros, depósitos, dólares)
+$stmt = $conn->prepare("SELECT m.*, date_format(m.fecha, '%d-%H:%i hs') AS hora,
+                               mo.medio AS origen, md.medio AS destino, u.usuario
+                        FROM movimientosMedios m
+                        INNER JOIN cierreMedios cm ON cm.idMedio = ?
+                        LEFT JOIN cierreMedios mo ON mo.idMedio = m.idMedioOrigen
+                        LEFT JOIN cierreMedios md ON md.idMedio = m.idMedioDestino
+                        LEFT JOIN usuarios u ON u.id = m.idUsuario
+                        WHERE (m.idMedioOrigen = cm.idMedio OR m.idMedioDestino = cm.idMedio)
+                          AND m.fecha >= cm.fechaUC
+                        ORDER BY m.fecha DESC");
+$idMedioInt = (int)$idMedio;
+$stmt->bind_param('i', $idMedioInt);
+$stmt->execute();
+$movimientos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <div class="table-responsive">
@@ -49,7 +65,7 @@ $result = mysqli_query($conn, $sql);
         <tbody>
             <?php 
             $totalDetalle = 0;
-            if(mysqli_num_rows($result) > 0):
+            if(mysqli_num_rows($result) > 0 || $movimientos):
                 while($f = mysqli_fetch_assoc($result)): 
                     
                     // Lógica Contable: Si es Egreso (2), restamos. Si es Venta (1), sumamos.
@@ -113,6 +129,35 @@ $result = mysqli_query($conn, $sql);
                 </td>
             </tr>
             <?php endwhile; ?>
+            <?php foreach ($movimientos as $mv):
+                $entra = (int)$mv['idMedioDestino'] === $idMedioInt;
+                $totalDetalle += $entra ? $mv['monto'] : -$mv['monto'];
+                $dolares = $mv['usd'] !== null ? 'US$ ' . number_format($mv['usd'], 2, ',', '.') . ($mv['cotizacion'] !== null ? ' a $' . number_format($mv['cotizacion'], 2, ',', '.') : '') : '';
+            ?>
+            <tr class="border-start border-info border-4 bg-info bg-opacity-10">
+                <td class="text-muted small"><?php echo $mv['hora']; ?></td>
+                <td><i class="bi bi-arrow-left-right text-info" title="Movimiento entre medios #<?php echo $mv['id']; ?>"></i></td>
+                <td>
+                    <div class="fw-bold text-truncate" style="max-width: 140px;"><?php echo htmlspecialchars($mv['origen'] . ' → ' . $mv['destino']); ?></div>
+                    <div class="text-muted small text-truncate" style="max-width: 140px;" title="<?php echo htmlspecialchars(trim($mv['nota'] . ' ' . $dolares) . ' · ' . $mv['usuario']); ?>">
+                        <?php echo htmlspecialchars(trim($mv['nota'] . ' ' . $dolares) ?: $mv['usuario']); ?>
+                    </div>
+                </td>
+                <td class="text-end fw-bold <?php echo $entra ? 'text-success' : 'text-danger'; ?>">
+                    <?php echo $entra ? '+' : '-'; ?>$<?php echo number_format($mv['monto'], 0, ',', '.'); ?>
+                </td>
+                <td></td>
+                <td class="text-end">
+                    <?php if ($puedeModificar): ?>
+                    <button class="btn btn-outline-danger btn-sm btnBorrarMovimiento" data-id="<?php echo $mv['id']; ?>">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                    <?php else: ?>
+                    <i class="bi bi-lock text-muted" title="No tenés permiso para borrar movimientos."></i>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
             <?php else: ?>
             <tr>
                 <td colspan="6" class="text-center py-4 text-muted">No hay movimientos nuevos.</td>
@@ -186,6 +231,16 @@ $('.btnEditarPagoDetalle').click(function() {
         if (status !== "error") {
             $('#modalUniversal').modal('show');
         }
+    });
+});
+
+// Borrar un movimiento entre medios
+$('.btnBorrarMovimiento').click(function() {
+    let motivo = pedirMotivo('Vas a ELIMINAR este movimiento entre medios.');
+    if (motivo === null) return;
+    $.post('finanzas/ajaxCierre.php', { opcion: 'borrarMovimiento', id: $(this).data('id'), motivo: motivo }, function(r) {
+        if (r.trim() !== 'OK') alert(r);
+        $('#contenido').load('finanzas/cierre.php');
     });
 });
 

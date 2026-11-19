@@ -165,3 +165,20 @@ function pedidoWebPendiente($pedido) {
 function describirEstados($pedido) {
     return 'producción ' . $pedido['estadoProduccion'] . ', entrega ' . $pedido['estadoEntrega'] . ', pago ' . $pedido['estadoPago'];
 }
+
+// Movimientos entre medios de la caja abierta (posteriores al último cierre de cada medio),
+// indexados por idMedio: ['cant' => n, 'neto' => +lo que entró −lo que salió].
+function movimientosCajaAbierta($conn) {
+    $res = mysqli_query($conn, "SELECT cm.idMedio, COUNT(m.id) AS cant,
+                                       SUM(CASE WHEN m.idMedioDestino = cm.idMedio THEN m.monto ELSE -m.monto END) AS neto
+                                FROM cierreMedios cm
+                                INNER JOIN movimientosMedios m
+                                        ON (m.idMedioOrigen = cm.idMedio OR m.idMedioDestino = cm.idMedio)
+                                       AND m.fecha >= cm.fechaUC
+                                GROUP BY cm.idMedio");
+    $mov = [];
+    while ($f = mysqli_fetch_assoc($res)) {
+        $mov[$f['idMedio']] = ['cant' => (int)$f['cant'], 'neto' => (float)$f['neto']];
+    }
+    return $mov;
+}

@@ -63,11 +63,15 @@ $pagos = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
 // Tarjetas: un medio por caja. En la caja abierta parten del monto del último cierre;
 // en un cierre total muestran lo que se contó en ese cierre (columna con el nombre del medio).
+// En la caja abierta la base incluye los movimientos entre medios (retiros, dólares), como en el cierre.
+$movMedios = ($filtro === 'abierta') ? movimientosCajaAbierta($conn) : [];
 $tarjetas = array();
 foreach ($cajas as $idM => $c) {
+    $netoMov = $movMedios[$idM]['neto'] ?? 0;
     $tarjetas[$idM] = [
         'medio' => $c['medio'],
-        'base' => ($filtro === 'abierta') ? (float)$c['montoUC'] : null,
+        'netoMov' => $netoMov,
+        'base' => ($filtro === 'abierta') ? (float)$c['montoUC'] + $netoMov : null,
         'contado' => ($cierreSel && isset($cierreSel[$c['medio']])) ? (float)$cierreSel[$c['medio']] : null,
     ];
 }
@@ -137,6 +141,11 @@ function textoFiltro($filtro, $fechaDia, $cierreSel) {
                     <?php if ($t['base'] !== null): ?>
                         <div class="small text-muted">Debería haber</div>
                         <div class="saldo text-primary deberia">$0</div>
+                        <?php if ($t['netoMov'] != 0): ?>
+                            <div class="small text-info" title="Movimientos entre medios (retiros, depósitos, dólares), incluidos en Debería haber">
+                                <i class="bi bi-arrow-left-right"></i> <?php echo ($t['netoMov'] > 0 ? '+$' : '-$') . number_format(abs($t['netoMov']), 0, ',', '.'); ?>
+                            </div>
+                        <?php endif; ?>
                     <?php elseif ($t['contado'] !== null): ?>
                         <div class="small text-muted">Contado en el cierre</div>
                         <div class="saldo text-secondary">$<?php echo number_format($t['contado'], 0, ',', '.'); ?></div>

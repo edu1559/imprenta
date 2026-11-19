@@ -390,6 +390,88 @@ switch ($opcion) {
             echo "❌ Error al registrar el ajuste: " . $e->getMessage();
         }
         break;
+
+    // -------------------------------------------------------------
+    // Movimiento entre medios (retiro, depósito, compra de dólares):
+    // resta al origen y suma al destino en la caja abierta.
+    // -------------------------------------------------------------
+    case 'movimientoMedios':
+        $origen  = (int)$_POST['idMedioOrigen'];
+        $destino = (int)$_POST['idMedioDestino'];
+        $monto   = round((float)$_POST['monto'], 2);
+        $usd     = ($_POST['usd'] ?? '') !== '' ? round((float)$_POST['usd'], 2) : null;
+        $cotiz   = ($_POST['cotizacion'] ?? '') !== '' ? round((float)$_POST['cotizacion'], 2) : null;
+        // la conexión es utf8 de 3 bytes: sin emojis
+        $nota    = mb_substr_seguro(preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', trim($_POST['nota'] ?? '')), 255);
+
+        if ($origen === $destino) {
+            echo "❌ El origen y el destino tienen que ser distintos.";
+            break;
+        }
+        if ($monto < 0.01) {
+            echo "❌ El monto tiene que ser mayor que cero.";
+            break;
+        }
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM cierreMedios cm INNER JOIN mediosPago mp ON mp.id = cm.idMedio
+                                WHERE mp.visible = 1 AND cm.idMedio IN (?, ?)");
+        $stmt->bind_param('ii', $origen, $destino);
+        $stmt->execute();
+        if ((int)$stmt->get_result()->fetch_row()[0] !== 2) {
+            echo "❌ Medio de pago inválido.";
+            break;
+        }
+
+        $stmt = $conn->prepare("INSERT INTO movimientosMedios (fecha, idMedioOrigen, idMedioDestino, monto, usd, cotizacion, nota, idUsuario)
+                                VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param('iidddsi', $origen, $destino, $monto, $usd, $cotiz, $nota, $idUsuario);
+        echo $stmt->execute() ? "✅ Movimiento registrado." : "❌ Error al guardar el movimiento.";
+        break;
+
+    // Borrar un movimiento entre medios: solo con permiso, motivo, y mientras
+    // las cajas de los dos medios sigan abiertas.
+    case 'borrarMovimiento':
+        if (!puedeModificar($conn)) {
+            echo "No tenés permiso para borrar movimientos. Tiene que ser un administrador o un usuario habilitado, logueado.";
+            break;
+        }
+        $motivo = trim($_POST['motivo'] ?? '');
+        if ($motivo === '') {
+            echo "Falta el motivo.";
+            break;
+        }
+        $stmt = $conn->prepare("SELECT * FROM movimientosMedios WHERE id = ?");
+        $id = (int)$_POST['id'];
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $mov = $stmt->get_result()->fetch_assoc();
+        if (!$mov) {
+            echo "No se encontró el movimiento.";
+            break;
+        }
+        if (fechaEnCajaCerrada($conn, $mov['fecha'], $mov['idMedioOrigen']) || fechaEnCajaCerrada($conn, $mov['fecha'], $mov['idMedioDestino'])) {
+            echo "Ese movimiento ya quedó en un cierre: cargá un movimiento al revés para corregirlo.";
+            break;
+        }
+
+        mysqli_begin_transaction($conn);
+        try {
+            $del = $conn->prepare("DELETE FROM movimientosMedios WHERE id = ?");
+            $del->bind_param('i', $id);
+            $del->execute();
+            registrarModificacion($conn, 'movimiento', $id, null, 'borrar', json_encode($mov), null, $motivo);
+            mysqli_commit($conn);
+            echo "OK";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "Error: " . $e->getMessage();
+        }
+        break;
+}
+
+// Corta un texto a $largo caracteres sin mbstring (no está en producción).
+function mb_substr_seguro($texto, $largo) {
+    preg_match('/^.{0,' . (int)$largo . '}/us', $texto, $m);
+    return $m[0] ?? '';
 }
 
 // Foto de cierreMedios (uno o todos), indexada por idMedio.
