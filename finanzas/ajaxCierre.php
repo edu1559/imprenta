@@ -401,8 +401,7 @@ switch ($opcion) {
         $monto   = round((float)$_POST['monto'], 2);
         $usd     = ($_POST['usd'] ?? '') !== '' ? round((float)$_POST['usd'], 2) : null;
         $cotiz   = ($_POST['cotizacion'] ?? '') !== '' ? round((float)$_POST['cotizacion'], 2) : null;
-        // la conexión es utf8 de 3 bytes: sin emojis
-        $nota    = mb_substr_seguro(preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', trim($_POST['nota'] ?? '')), 255);
+        $nota    = textoCorto($_POST['nota'] ?? '', 255);
 
         if ($origen === $destino) {
             echo "❌ El origen y el destino tienen que ser distintos.";
@@ -468,11 +467,6 @@ switch ($opcion) {
         break;
 }
 
-// Corta un texto a $largo caracteres sin mbstring (no está en producción).
-function mb_substr_seguro($texto, $largo) {
-    preg_match('/^.{0,' . (int)$largo . '}/us', $texto, $m);
-    return $m[0] ?? '';
-}
 
 // Foto de cierreMedios (uno o todos), indexada por idMedio.
 function estadoCierreMedios($conn, $idMedio = null) {

@@ -296,6 +296,21 @@ $('#btnActualizarPedido').on('click', function() {
         idOrigen: <?php echo $reg['idOrigen']; ?>
     };
 
+    // Con pagos cargados, cambiar el monto pide motivo
+    var montoOriginal = <?php echo (float)$reg['monto']; ?>;
+    var cantPagos = <?php echo (int)$estadoPedido['cantPagos']; ?>;
+    if (cantPagos > 0 && Math.abs((parseFloat(datos.monto) || 0) - montoOriginal) > 0.01) {
+        var motivo = prompt('Este pedido ya tiene pagos. Vas a cambiar el monto de $'
+            + montoOriginal.toLocaleString('es-AR') + ' a $' + (parseFloat(datos.monto) || 0).toLocaleString('es-AR')
+            + '.\n\nMotivo (obligatorio):');
+        if (motivo === null) return;
+        if (motivo.trim() === '') {
+            alert('Tenés que indicar el motivo.');
+            return;
+        }
+        datos.motivoMonto = motivo.trim();
+    }
+
     $.post('pedidos/ajaxPedidos.php', datos, function(res) {
         alert(res);
         $('#modalUniversal').modal('hide');

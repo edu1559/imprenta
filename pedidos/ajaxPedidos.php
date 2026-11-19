@@ -148,6 +148,13 @@ switch ($opcion){
         echo "❌ " . $error;
         break;
     }
+    // Cambiar el precio de un pedido que ya tiene pagos exige motivo (queda en el registro de cambios)
+    $cambiaMonto = abs((float)$actual['monto'] - $monto) > 0.01;
+    $motivoMonto = trim($_POST['motivoMonto'] ?? '');
+    if ($cambiaMonto && (int)$actual['cantPagos'] > 0 && $motivoMonto === '') {
+        echo "❌ El pedido ya tiene pagos: para cambiar el monto tenés que indicar el motivo.";
+        break;
+    }
     $idEstadoPago = calcularEstadoPago($monto, (float)$actual['montoPagado']);
 
     // Actualización del pedido
@@ -168,8 +175,9 @@ switch ($opcion){
 
     if ($result) {
         marcarFechaTerminado($conn, $idPedidoInt);
-        if (abs((float)$actual['monto'] - $monto) > 0.01) {
-            registrarModificacion($conn, 'pedido', $idPedidoInt, $idPedidoInt, 'modificarMonto', $actual['monto'], $monto, 'Editar pedido');
+        if ($cambiaMonto) {
+            registrarModificacion($conn, 'pedido', $idPedidoInt, $idPedidoInt, 'modificarMonto', $actual['monto'], $monto,
+                                  $motivoMonto !== '' ? textoCorto($motivoMonto, 255) : 'Editar pedido');
         }
         echo "✅ Pedido #$idPedido actualizado correctamente.";
     } else {

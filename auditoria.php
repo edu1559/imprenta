@@ -182,3 +182,11 @@ function movimientosCajaAbierta($conn) {
     }
     return $mov;
 }
+
+// Texto libre para guardar: sin espacios en los bordes, sin emojis (la conexión es utf8
+// de 3 bytes) y cortado a $largo caracteres sin mbstring (no está en producción).
+function textoCorto($texto, $largo) {
+    $texto = trim(preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', (string)$texto) ?? '');
+    preg_match('/^.{0,' . (int)$largo . '}/us', $texto, $m);
+    return $m[0] ?? '';
+}
