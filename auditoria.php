@@ -190,3 +190,91 @@ function textoCorto($texto, $largo) {
     preg_match('/^.{0,' . (int)$largo . '}/us', $texto, $m);
     return $m[0] ?? '';
 }
+
+
+// ---------------------------------------------------------------------------
+// Registro de cambios: cómo se muestra cada fila de 'modificaciones'.
+// Lo usan el Historial de un pedido y la página Administración → Registro de cambios.
+// ---------------------------------------------------------------------------
+
+const MOTIVO_YA_COBRADO = 'Cerrado desde Pedidos: ya estaba cobrado';
+// Anulaciones hechas por los scripts de sql/limpieza/ (octubre 2026), no por una persona.
+const MOTIVOS_ANULAR_LIMPIEZA = ['Presupuesto vencido', 'Tipo de pedido viejo', 'Pedido de tipo viejo (sistema anterior)'];
+
+function pesosRegistro($n) {
+    return ((float)$n < 0 ? '-$' : '$') . number_format(abs((float)$n), 0, ',', '.');
+}
+
+// Devuelve ['icono', 'texto', 'motivo', 'importante' (cambio hecho a mano), 'limpieza' (scripts)].
+// $medios: [idMedio => nombre], para cierres y movimientos entre medios.
+function describirModificacion($m, $medios = []) {
+    $antes = $m['valorAnterior'];
+    $despues = $m['valorNuevo'];
+    $d = ['motivo' => $m['motivo'], 'importante' => true, 'limpieza' => false];
+    switch ($m['entidad'] . '/' . $m['accion']) {
+        case 'pedido/modificarMonto':
+            $d += ['icono' => 'bi-pencil-square text-danger', 'texto' => 'Monto del pedido: ' . pesosRegistro($antes) . ' → ' . pesosRegistro($despues)];
+            if ($m['motivo'] === 'Editar pedido') $d['motivo'] = null; // cambios anteriores al motivo obligatorio
+            break;
+        case 'pedido/anular':
+            if (in_array($m['motivo'], MOTIVOS_ANULAR_LIMPIEZA, true)) $d = ['importante' => false, 'limpieza' => true] + $d;
+            $d += ['icono' => 'bi-x-circle text-danger', 'texto' => 'Pedido anulado (monto ' . pesosRegistro(ltrim((string)$antes, '$')) . ')'];
+            break;
+        case 'pedido/reabrir':
+            $d += ['icono' => 'bi-unlock text-warning', 'texto' => 'Pedido reabierto'];
+            break;
+        case 'pedido/aprobarWeb':
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-globe text-success', 'texto' => 'Pedido web aprobado por ' . pesosRegistro(ltrim((string)$despues, '$'))];
+            break;
+        case 'pedido/rechazarWeb':
+            $d += ['icono' => 'bi-globe text-danger', 'texto' => 'Pedido web rechazado'];
+            break;
+        case 'pago/ajuste':
+            $d += ['icono' => 'bi-wrench text-warning', 'texto' => "Pago de ajuste #{$m['idEntidad']}: " . (string)$despues];
+            break;
+        case 'pago/borrar':
+            $d += ['icono' => 'bi-trash text-danger', 'texto' => 'Pago borrado: ' . $antes];
+            break;
+        case 'pago/cambiarMedio':
+            $d += ['icono' => 'bi-arrow-left-right text-warning', 'texto' => "Pago #{$m['idEntidad']} movido de $antes a $despues"];
+            break;
+        case 'pago/modificarMonto':
+            $d += ['icono' => 'bi-pencil-square text-danger', 'texto' => "Pago #{$m['idEntidad']}: monto " . pesosRegistro($antes) . ' → ' . pesosRegistro($despues)];
+            break;
+        case 'pedido/regularizar':
+            // Botón "ya estaba cobrado" de Pedidos: lo hace un empleado y cierra el pedido sin que entre plata
+            if ($m['motivo'] === MOTIVO_YA_COBRADO) {
+                $saldo = json_decode((string)$despues, true)['pagoSinRegistro'] ?? 0;
+                $d['motivo'] = null;
+                $d += ['icono' => 'bi-lock text-danger',
+                       'texto' => 'Cerrado como «ya estaba cobrado»' . ($saldo > 0 ? ': el saldo de ' . pesosRegistro($saldo) . ' quedó como pago sin registro' : '')];
+                break;
+            }
+            // si no, es de los scripts de limpieza: sigue abajo
+        case 'pago/regularizar':
+            $d = ['importante' => false, 'limpieza' => true] + $d;
+            $d += ['icono' => 'bi-gear text-secondary', 'texto' => 'Regularizado en la limpieza de datos'];
+            break;
+        case 'cierre/cierreParcial':
+            $d = ['importante' => false, 'motivo' => null] + $d;
+            $d += ['icono' => 'bi-lock text-secondary', 'texto' => 'Cierre parcial de ' . ($medios[$m['idEntidad']] ?? 'medio ' . $m['idEntidad']) . ': contado ' . pesosRegistro($despues)];
+            break;
+        case 'cierre/cierreTotal':
+            $d = ['importante' => false, 'motivo' => null] + $d;
+            $d += ['icono' => 'bi-check-all text-secondary', 'texto' => "Cierre total de caja #{$m['idEntidad']}"];
+            break;
+        case 'cierre/borrar':
+            $d += ['icono' => 'bi-trash text-danger', 'texto' => "Cierre total #{$m['idEntidad']} borrado (era del " . date('d/m/Y H:i', strtotime((string)$antes)) . ')'];
+            break;
+        case 'movimiento/borrar':
+            $mov = json_decode((string)$antes, true) ?: [];
+            $d += ['icono' => 'bi-trash text-danger', 'texto' => 'Movimiento entre medios borrado: ' . pesosRegistro($mov['monto'] ?? 0)
+                   . ' de ' . ($medios[$mov['idMedioOrigen'] ?? 0] ?? '?') . ' a ' . ($medios[$mov['idMedioDestino'] ?? 0] ?? '?')
+                   . (!empty($mov['nota']) ? ' («' . $mov['nota'] . '»)' : '')];
+            break;
+        default:
+            $d += ['icono' => 'bi-dot', 'texto' => $m['entidad'] . ' ' . $m['accion'] . ($antes !== null ? ": $antes" : '') . ($despues !== null ? " → $despues" : '')];
+    }
+    return $d;
+}

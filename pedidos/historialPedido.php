@@ -33,9 +33,6 @@ $stmt->bind_param('i', $idPedido);
 $stmt->execute();
 $pagos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-function pesosH($n) {
-    return ((float)$n < 0 ? '-$' : '$') . number_format(abs((float)$n), 0, ',', '.');
-}
 function nombreMedioH($medio) {
     return $medio === 'sinRegistro' ? 'sin registro (no entró a ninguna caja)' : $medio;
 }
@@ -55,13 +52,13 @@ foreach ($mods as $m) {
 // Cada evento: fecha, usuario, icono, texto, motivo, importante (resaltado) y limpieza (gris).
 $eventos = [];
 $eventos[] = ['fecha' => $pedido['entrada'], 'usuario' => $pedido['usuario'], 'icono' => 'bi-plus-circle text-primary',
-              'texto' => 'Pedido cargado por ' . pesosH($montoInicial)];
+              'texto' => 'Pedido cargado por ' . pesosRegistro($montoInicial)];
 
 foreach ($pagos as $p) {
     $aj = $ajustes[$p['id']] ?? null;
     $eventos[] = ['fecha' => $p['fecha'], 'usuario' => $aj['usuario'] ?? $p['usuario'],
                   'icono' => $aj ? 'bi-wrench text-warning' : 'bi-cash-coin text-success',
-                  'texto' => ($aj ? 'Pago de ajuste ' : 'Pago ') . pesosH($p['monto']) . ' en ' . nombreMedioH($p['medio']),
+                  'texto' => ($aj ? 'Pago de ajuste ' : 'Pago ') . pesosRegistro($p['monto']) . ' en ' . nombreMedioH($p['medio']),
                   'motivo' => $aj['motivo'] ?? null, 'importante' => (bool)$aj];
 }
 
@@ -70,54 +67,8 @@ if ($pedido['fechaTerminado']) {
 }
 
 foreach ($mods as $m) {
-    $ev = ['fecha' => $m['fecha'], 'usuario' => $m['usuario'], 'motivo' => $m['motivo'], 'importante' => true];
-    $antes = $m['valorAnterior'];
-    $despues = $m['valorNuevo'];
-    switch ($m['entidad'] . '/' . $m['accion']) {
-        case 'pago/ajuste':
-            continue 2; // ya está en la fila del pago
-        case 'pedido/modificarMonto':
-            $ev += ['icono' => 'bi-pencil-square text-danger', 'texto' => 'Monto del pedido: ' . pesosH($antes) . ' → ' . pesosH($despues)];
-            if ($m['motivo'] === 'Editar pedido') $ev['motivo'] = null; // cambios anteriores al motivo obligatorio
-            break;
-        case 'pedido/anular':
-            $ev += ['icono' => 'bi-x-circle text-danger', 'texto' => 'Pedido anulado (monto ' . pesosH(ltrim((string)$antes, '$')) . ')'];
-            break;
-        case 'pedido/reabrir':
-            $ev += ['icono' => 'bi-unlock text-warning', 'texto' => 'Pedido reabierto'];
-            break;
-        case 'pedido/aprobarWeb':
-            $ev += ['icono' => 'bi-globe text-success', 'texto' => 'Pedido web aprobado por ' . pesosH(ltrim((string)$despues, '$')), 'importante' => false];
-            break;
-        case 'pedido/rechazarWeb':
-            $ev += ['icono' => 'bi-globe text-danger', 'texto' => 'Pedido web rechazado'];
-            break;
-        case 'pago/borrar':
-            $ev += ['icono' => 'bi-trash text-danger', 'texto' => 'Pago borrado: ' . $antes];
-            break;
-        case 'pago/cambiarMedio':
-            $ev += ['icono' => 'bi-arrow-left-right text-warning', 'texto' => "Pago #{$m['idEntidad']} movido de $antes a $despues"];
-            break;
-        case 'pago/modificarMonto':
-            $ev += ['icono' => 'bi-pencil-square text-danger', 'texto' => "Pago #{$m['idEntidad']}: monto " . pesosH($antes) . ' → ' . pesosH($despues)];
-            break;
-        case 'pedido/regularizar':
-            // Botón "ya estaba cobrado" de Pedidos: lo hace un empleado y cierra el pedido sin que entre plata
-            if ($m['motivo'] === 'Cerrado desde Pedidos: ya estaba cobrado') {
-                $saldo = json_decode((string)$despues, true)['pagoSinRegistro'] ?? 0;
-                $ev['motivo'] = null;
-                $ev += ['icono' => 'bi-lock text-danger',
-                        'texto' => 'Cerrado como «ya estaba cobrado»' . ($saldo > 0 ? ': el saldo de ' . pesosH($saldo) . ' quedó como pago sin registro' : '')];
-                break;
-            }
-            // si no, es de los scripts de limpieza: sigue abajo
-        case 'pago/regularizar':
-            $ev += ['icono' => 'bi-gear text-secondary', 'texto' => 'Regularizado en la limpieza de datos', 'importante' => false, 'limpieza' => true];
-            break;
-        default:
-            $ev += ['icono' => 'bi-dot', 'texto' => $m['entidad'] . ' ' . $m['accion'] . ($antes !== null ? ": $antes" : '') . ($despues !== null ? " → $despues" : '')];
-    }
-    $eventos[] = $ev;
+    if ($m['entidad'] === 'pago' && $m['accion'] === 'ajuste') continue; // ya está en la fila del pago
+    $eventos[] = ['fecha' => $m['fecha'], 'usuario' => $m['usuario']] + describirModificacion($m);
 }
 
 usort($eventos, fn($a, $b) => strcmp((string)$a['fecha'], (string)$b['fecha']));
