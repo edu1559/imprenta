@@ -202,6 +202,11 @@ $esAdmin        = esAdministrador($conn);
             <?php endif; ?>
         <?php endif; ?>
     </form>
+
+    <button type="button" id="btnHistorialPedido" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+        <i class="bi bi-clock-history"></i> Historial
+    </button>
+    <div id="historialPedido" class="border rounded mt-2" style="display:none; max-height: 300px; overflow-y: auto;"></div>
 </div>
 
 <script>
@@ -276,6 +281,17 @@ $('#btnAnularPedido').on('click', function() {
 
 $('#btnReabrirPedido').on('click', function() {
     accionConMotivo('reabrirPedido', 'Vas a REABRIR el pedido #' + $('#editIdPedido').val() + '. La entrega vuelve a "Pendiente".');
+});
+
+// Historial: se carga la primera vez que se abre
+$('#btnHistorialPedido').on('click', function() {
+    var $h = $('#historialPedido');
+    if ($h.is(':visible')) { $h.slideUp(150); return; }
+    if ($h.is(':empty')) {
+        $h.html('<div class="p-3 text-center"><div class="spinner-border spinner-border-sm"></div></div>')
+          .load('pedidos/historialPedido.php?idPedido=' + $('#editIdPedido').val());
+    }
+    $h.slideDown(150);
 });
 
 $('#btnActualizarPedido').on('click', function() {
