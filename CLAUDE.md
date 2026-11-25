@@ -10,15 +10,20 @@ Aplicación web de gestión para una imprenta: productos y precios, clientes, pe
 - Servidor local de desarrollo: Apache
 
 ## Estado de producción
-- Dominio asignado: `imprentacorintios.com.ar` — **todavía no está en uso**.
-- La versión que se usa actualmente en el día a día es una **versión vieja**, alojada en `http://www.imprentacorintios.com/imprenta1`. Esta carpeta de trabajo es una versión más nueva, todavía no promovida a ese dominio/uso real.
-- Al proponer cambios, tener en cuenta que hay una versión en producción activa separada de este código — no asumir que este código es exactamente lo que los usuarios están usando hoy.
+- **En producción desde el 05/10/2026** en `imprentacorintios.com.ar`; los empleados lo usan a diario. Este código (rama `main`) es lo que corre en el servidor: salvo `conexion.php`, el código de producción coincide con HEAD una vez desplegado cada commit.
+- La versión vieja (`www.imprentacorintios.com/imprenta1`) ya no es la de uso diario.
+- Todo cambio afecta a usuarios reales: arreglos chicos y acotados, nada de refactors o renombres grandes sin preguntar.
+- **La base de producción es la fuente de verdad.** La base local es una copia (dump de prod) con datos reales: nunca subir un dump local a producción, y tras pruebas locales borrar solo las filas creadas por la prueba.
 
 ## Infraestructura y deploy
-- Hosting: DigitalOcean, cuenta personal (acceso exclusivo del dueño del proyecto).
-- Deploy: manual, vía `scp` desde línea de comandos, tanto desde la máquina de casa como desde la del trabajo (IUA).
-- No hay CI/CD ni proceso automatizado de despliegue todavía.
-- **No ejecutar comandos de deploy (scp, subida de archivos al hosting) sin confirmación explícita** — el destino es producción real.
+- Hosting: droplet de DigitalOcean (Ubuntu, Apache, PHP 8.3), cuenta personal del dueño del proyecto. Acceso: `ssh root@imprentacorintios.com.ar`; la app está en `/var/www/html/imprenta`.
+- **En el servidor no hay git**: el código se sube como archivos (scp/tar por ssh), desde la máquina de casa o la del IUA. No hay CI/CD.
+- **No ejecutar nada que escriba en producción (subir archivos, correr SQL o scripts) sin confirmación explícita cada vez.**
+- Procedimiento de deploy: respaldar antes en el servidor (`/root/respaldos/<fecha>/<tema>/`), subir solo los archivos del commit, dejarlos `www-data:www-data` 644 (tar por ssh los deja como root) y verificar con md5 contra el local.
+- `conexion.php` del servidor tiene las credenciales reales: **nunca sobrescribirlo**.
+- Cambios de esquema: scripts fechados en `sql/` (`AAAA-MM-DD_tema.sql`), se corren una sola vez en prod; los que no son idempotentes no deben volver a correrse. Cambios de datos: scripts CLI con dry-run primero y `--aplicar` después del OK.
+- El PHP de producción **no tiene mbstring ni gd**: no usar funciones `mb_*` ni de imágenes GD.
+- `fotoUsuarios/` debe ser escribible por Apache (`www-data`).
 
 ## Estructura del proyecto
 - `administracion/` — gestión de productos y precios
