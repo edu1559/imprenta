@@ -156,6 +156,9 @@ $idTipoInicial = array_key_first($tipoPedido) ?: 1;
                             <?php foreach ($medioPago as $id => $val) echo "<option value='$id'>$val</option>"; ?>
                         </select>
                     </div>
+                    <div class="col-12">
+                        <?php $prefijoCheque = 'pn'; include __DIR__ . '/../finanzas/camposCheque.php'; ?>
+                    </div>
                 </div>
 
                 <div class="row align-items-end">
@@ -346,6 +349,15 @@ $(document).ready(function() {
             alert("Por favor, seleccione un cliente.");
             return;
         }
+        // seña con cheque: van los datos del cheque
+        if (parseFloat(datos.montoPagado) > 0) {
+            var cheque = ChequeForm.datos('pn');
+            if (typeof cheque === 'string') {
+                alert(cheque);
+                return;
+            }
+            if (cheque) datos.cheque = cheque;
+        }
 
         $.post('pedidos/ajaxPedidos.php', datos, function(res) {
             // Con un error, el modal queda abierto para no perder lo que se escribió.
@@ -360,6 +372,9 @@ $(document).ready(function() {
             alert('No se pudo guardar el pedido (error del servidor). Lo escrito sigue en el formulario.');
         });
     });
+
+    ChequeForm.vincular('pn', '#selMedioPago', '#inpMontoPagado', function() { return $('#selIdTipo').val() == 2; });
+    $('#selIdTipo').on('change', function() { ChequeForm.refrescar('pn'); });
 
     // Contador de caracteres de los textos con límite (detalle y observaciones)
     $('#modalUniversal').off('input.contador').on('input.contador', 'textarea[maxlength]', function() {

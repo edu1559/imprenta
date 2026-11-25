@@ -2,6 +2,7 @@
 session_start();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
+include_once(__DIR__ . '/../cheques.php');
 $conn = conectar();
 
 // El panel de pedidos es solo para trabajadores: sin sesión no se graba nada.
@@ -70,6 +71,15 @@ switch ($opcion){
         if ((float)$monto > 0) {
             $idEstadoPago = calcularEstadoPago((float)$monto, (float)$montoPagado);
         }
+        // seña con cheque: se valida antes de grabar el pedido
+        $cheque = null;
+        if ((float)$montoPagado > 0 && esMedioCheques($conn, $idMedioPago)) {
+            $cheque = chequeDelFormulario($conn, (float)$montoPagado, (int)$idTipoPedido === TIPO_PEDIDO_COMPRA);
+            if (isset($cheque['error'])) {
+                echo "❌ " . $cheque['error'];
+                break;
+            }
+        }
 
         // Insertamos el PEDIDO
         $sql = "INSERT INTO pedidos (idContacto, idTipoPedido, idOrigen, detalle, observaciones, entrada, estadoEntrega, estadoProduccion, estadoPago, prometido, montoPagado, monto, idMedioPago, idUsuario)          
@@ -101,6 +111,10 @@ switch ($opcion){
                             VALUES (NOW(), '$montoPagado', $ultimo_id_pedido, $idUsuario, $idMedioPago)";
                 
                 $resultPago = mysqli_query($conn, $sqlPago);
+                if ($resultPago && $cheque) {
+                    $idPago = mysqli_insert_id($conn);
+                    guardarChequeDelPago($conn, $cheque, $idPago, $ultimo_id_pedido, (int)$idContacto, $idUsuario);
+                }
                 
                 if ($resultPago) {
                     $mensaje .= "<br><small>Pago de $$montoPagado registrado.</small>";
@@ -237,6 +251,11 @@ case 'cerrarPedido':
     }
 
     // "Cobrado ahora": el saldo entra hoy con el medio elegido
+    if ($saldo > 0.1 && esMedioCheques($conn, $idMedio)) {
+        mysqli_rollback($conn);
+        echo "❌ El saldo se cobra con cheque: cargalo desde el botón de pagos del pedido, con los datos del cheque, y después cerralo.";
+        break;
+    }
     if ($saldo > 0.1) {
         $stmt = $conn->prepare("INSERT INTO pagos (fecha, idPedido, monto, idMedioPago, idUsuario) VALUES (NOW(), ?, ?, ?, ?)");
         $stmt->bind_param('idii', $id, $saldo, $idMedio, $idUsuario);

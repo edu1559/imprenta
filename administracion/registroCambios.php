@@ -23,6 +23,7 @@ $grupos = [
     'anulaciones' => ['Anulados y reabiertos', "m.entidad = 'pedido' AND m.accion IN ('anular', 'reabrir') AND NOT $esLimpieza"],
     'web'         => ['Pedidos web', "m.accion IN ('aprobarWeb', 'rechazarWeb')"],
     'caja'        => ['Cierres de caja y movimientos', "m.entidad IN ('cierre', 'movimiento')"],
+    'cheques'     => ['Cheques', "m.entidad = 'cheque' OR m.accion = 'rechazoCheque'"],
     'limpieza'    => ['Limpieza de datos', $esLimpieza],
 ];
 $condTodos = "NOT (m.entidad = 'cierre' AND m.accion IN ('cierreParcial', 'cierreTotal')) AND NOT $esLimpieza";

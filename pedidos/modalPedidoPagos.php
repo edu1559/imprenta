@@ -2,6 +2,7 @@
 session_start();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
+include_once(__DIR__ . '/../cheques.php');
 exigirTrabajadorPagina();
 $conn = conectar();
 
@@ -32,10 +33,13 @@ $pedidoCerrado = pedidoCerrado($p);
 
 
 // 3. Historial de pagos
-$sqlPagos = "SELECT pa.*, mp.medio, u.usuario 
+$sqlPagos = "SELECT pa.*, mp.medio, u.usuario,
+                    ch.tipo AS chTipo, ch.numero AS chNumero, ch.banco AS chBanco, ch.titular AS chTitular,
+                    ch.fechaPago AS chFechaPago, ch.estado AS chEstado
              FROM pagos pa 
              INNER JOIN mediosPago mp ON pa.idMedioPago = mp.id
              INNER JOIN usuarios u ON pa.idUsuario = u.id 
+             LEFT JOIN cheques ch ON ch.id = pa.idCheque
              WHERE idPedido = $idPedido ORDER BY pa.fecha DESC";
 $resHistorial = mysqli_query($conn, $sqlPagos);
 
@@ -102,6 +106,7 @@ $resHistorial = mysqli_query($conn, $sqlPagos);
                     </button>
                 </div>
             </div>
+            <?php $prefijoCheque = 'nvo'; include __DIR__ . '/../finanzas/camposCheque.php'; ?>
         </div>
     </div>
     <?php else: ?>
@@ -171,7 +176,12 @@ $resHistorial = mysqli_query($conn, $sqlPagos);
                 ?>
                 <tr>
                     <td><?php echo date('d/m/Y H:i', strtotime($h['fecha'])); ?></td>
-                    <td><?php echo $h['medio']; ?></td>
+                    <td><?php echo $h['medio']; ?>
+                        <?php if ($h['chNumero'] !== null): ?>
+                            <div class="text-muted"><?php echo htmlspecialchars(describirCheque(['tipo' => $h['chTipo'], 'numero' => $h['chNumero'], 'banco' => $h['chBanco'], 'titular' => $h['chTitular'], 'fechaPago' => $h['chFechaPago']])); ?>
+                                <?php if ($h['chEstado'] !== 'tenemos'): ?><span class="badge bg-secondary"><?php echo $h['chEstado']; ?></span><?php endif; ?></div>
+                        <?php endif; ?>
+                    </td>
                     <td><?php echo $h['usuario']; ?></td>
                     <td class="text-end fw-bold">$<?php echo number_format($h['monto'], 2); ?></td>
                     <td><?php echo $cajaCerrada ? '<span class="badge bg-secondary">cerrada</span>' : '<span class="badge bg-success">abierta</span>'; ?></td>
@@ -277,20 +287,36 @@ $('#btnNvoPago').click(function(){
         return;
     }
 
-    $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+    const cheque = ChequeForm.datos('nvo');
+    if (typeof cheque === 'string') {
+        alert(cheque);
+        return;
+    }
+
+    let $btn = $(this);
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
 
     $.post('finanzas/ajaxCierre.php', {
         opcion: 'agregarPago',
         idPedido: '<?php echo $idPedido; ?>',
         monto: v_monto,
         idMedioPago: $('#idMedioPago').val(),
+        cheque: cheque || undefined,
         montoTotal: '<?php echo $montoTotal; ?>',
         montoPagadoAnterior: '<?php echo $montoPagadoActual; ?>'
     }, function(data) {
+        // con un error el modal queda abierto, para no perder lo cargado
+        if (data.trim().indexOf('✅') !== 0) {
+            alert(data);
+            $btn.prop('disabled', false).html('<i class="bi bi-plus-circle"></i> Guardar Pago');
+            return;
+        }
         $('#modalUniversal').modal('hide');
         // Recargamos el tablero de pedidos para ver los cambios de colores/montos
         $('#contenido').load(window.urlListaActual || 'pedidos/pedidos.php');
         alert("Pago registrado correctamente");
     });
 });
+
+if ($('#nvoCheque').length) ChequeForm.vincular('nvo', '#idMedioPago', '#montoNuevo', function() { return <?php echo (int)$p['idTipoPedido'] === TIPO_PEDIDO_COMPRA ? 'true' : 'false'; ?>; });
 </script>

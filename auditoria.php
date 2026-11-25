@@ -110,7 +110,7 @@ function fechaEnCajaCerrada($conn, $fecha, $idMedio) {
 
 // Pago con los datos de su pedido y de su caja, para decidir si se puede tocar.
 function cargarPago($conn, $idPago) {
-    $stmt = $conn->prepare("SELECT pg.id, pg.fecha, pg.monto, pg.idMedioPago, pg.idPedido,
+    $stmt = $conn->prepare("SELECT pg.id, pg.fecha, pg.monto, pg.idMedioPago, pg.idPedido, pg.idCheque,
                                    mp.medio,
                                    p.estadoProduccion, p.estadoEntrega, p.estadoPago
                             FROM pagos pg
@@ -281,6 +281,26 @@ function describirModificacion($m, $medios = []) {
             $d += ['icono' => 'bi-trash text-danger', 'texto' => 'Movimiento entre medios borrado: ' . pesosRegistro($mov['monto'] ?? 0)
                    . ' de ' . ($medios[$mov['idMedioOrigen'] ?? 0] ?? '?') . ' a ' . ($medios[$mov['idMedioDestino'] ?? 0] ?? '?')
                    . (!empty($mov['nota']) ? ' («' . $mov['nota'] . '»)' : '')];
+            break;
+        case 'pago/rechazoCheque':
+            $d += ['icono' => 'bi-x-octagon text-danger', 'texto' => "Pago #{$m['idEntidad']} revertido: " . $despues];
+            break;
+        case 'cheque/entregar':
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-person-check text-success', 'texto' => "Cheque #{$m['idEntidad']} entregado " . $despues];
+            break;
+        case 'cheque/depositar':
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-bank text-primary', 'texto' => "Cheque #{$m['idEntidad']} depositado " . $despues];
+            break;
+        case 'cheque/rechazar':
+            $d += ['icono' => 'bi-x-octagon text-danger', 'texto' => "Cheque #{$m['idEntidad']} " . $despues];
+            break;
+        case 'cheque/volverCartera':
+            $d += ['icono' => 'bi-arrow-counterclockwise text-warning', 'texto' => "Cheque #{$m['idEntidad']} volvió a cartera (estaba $antes)"];
+            break;
+        case 'cheque/editar':
+            $d += ['icono' => 'bi-pencil-square text-warning', 'texto' => "Cheque #{$m['idEntidad']} corregido: " . $despues];
             break;
         default:
             $d += ['icono' => 'bi-dot', 'texto' => $m['entidad'] . ' ' . $m['accion'] . ($antes !== null ? ": $antes" : '') . ($despues !== null ? " → $despues" : '')];

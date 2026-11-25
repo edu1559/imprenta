@@ -2,6 +2,7 @@
 session_start();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
+include_once(__DIR__ . '/../cheques.php');
 $conn = conectar();
 
 $opcion = $_POST['opcion'] ?? $_GET['opcion'] ?? '';
@@ -19,6 +20,10 @@ switch ($opcion) {
         $idMedio = (int)$_POST['idMedio'];
         if ($idMedio === (int)$pago['idMedioPago']) {
             echo "OK";
+            break;
+        }
+        if (esMedioCheques($conn, $pago['idMedioPago']) || esMedioCheques($conn, $idMedio)) {
+            echo "Los pagos con cheque no cambian de medio: borrá el pago y cargalo de nuevo con el medio correcto.";
             break;
         }
         if (fechaEnCajaCerrada($conn, $pago['fecha'], $idMedio)) {
@@ -271,13 +276,32 @@ switch ($opcion) {
             break;
         }
 
-        $sqlPago = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
-        $sqlPago->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
+        // con cheque: se valida antes de grabar nada
+        $cheque = null;
+        if (esMedioCheques($conn, $idMedioPago)) {
+            $cheque = chequeDelFormulario($conn, $monto, pedidoEsCompra($conn, $idPedido));
+            if (isset($cheque['error'])) {
+                echo "❌ " . $cheque['error'];
+                break;
+            }
+        }
 
-        if ($sqlPago->execute()) {
-            echo recalcularPagosPedido($conn, $idPedido) ? "✅ Pago registrado y pedido actualizado." : "❌ Error al actualizar pedido: " . mysqli_error($conn);
-        } else {
-            echo "❌ Error al guardar el pago.";
+        mysqli_begin_transaction($conn);
+        try {
+            $sqlPago = $conn->prepare("INSERT INTO pagos (idPedido, fecha, monto, idMedioPago, idUsuario) VALUES (?, NOW(), ?, ?, ?)");
+            $sqlPago->bind_param('idii', $idPedido, $monto, $idMedioPago, $idUsuario);
+            $sqlPago->execute();
+            $idPago = $conn->insert_id;  // antes de cualquier otra consulta, que lo pone en 0
+            if ($cheque) {
+                $idContacto = mysqli_fetch_row(mysqli_query($conn, "SELECT idContacto FROM pedidos WHERE id = $idPedido"))[0];
+                guardarChequeDelPago($conn, $cheque, $idPago, $idPedido, $idContacto, $idUsuario);
+            }
+            if (!recalcularPagosPedido($conn, $idPedido)) throw new Exception(mysqli_error($conn));
+            mysqli_commit($conn);
+            echo "✅ Pago registrado y pedido actualizado.";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "❌ Error al guardar el pago: " . $e->getMessage();
         }
         break;
 
@@ -296,6 +320,26 @@ switch ($opcion) {
         if ($cambiaMedio && fechaEnCajaCerrada($conn, $pago['fecha'], $idMedioPago)) {
             echo "❌ No se puede pasar a ese medio: su caja ya se cerró después de la fecha de este pago.";
             break;
+        }
+        if ($cambiaMedio && (esMedioCheques($conn, $pago['idMedioPago']) || esMedioCheques($conn, $idMedioPago))) {
+            echo "❌ Los pagos con cheque no cambian de medio: borrá el pago y cargalo de nuevo con el medio correcto.";
+            break;
+        }
+        if ($cambiaMonto && $pago['idCheque'] && pedidoEsCompra($conn, $pago['idPedido'])) {
+            echo "❌ El pago de una compra con cheque es por el monto del cheque: para cambiarlo, borrá el pago (el cheque vuelve a cartera).";
+            break;
+        }
+        if ($cambiaMonto && $pago['idCheque']) {
+            $ch = cargarCheque($conn, (int)$pago['idCheque']);
+            if ($ch && $ch['estado'] !== 'tenemos') {
+                echo "❌ El cheque de este pago ya no está en cartera ({$ch['estado']}).";
+                break;
+            }
+            $disponible = disponibleCheque($conn, (int)$pago['idCheque'], (int)$pago['id']);
+            if ($nuevoMonto > $disponible + 0.009) {
+                echo "❌ El pago no puede superar lo que queda del cheque ($" . number_format($disponible, 2, ',', '.') . ").";
+                break;
+            }
         }
 
         mysqli_begin_transaction($conn);
@@ -324,15 +368,21 @@ switch ($opcion) {
     case 'borrarPago':
         $pago = validarModificacionPago($conn, (int)$_POST['id']);
         if (!$pago) break;
+        if ($pago['idCheque'] && ($bloqueo = bloqueoBorrarPagoCheque($conn, $pago))) {
+            echo $bloqueo;
+            break;
+        }
 
         mysqli_begin_transaction($conn);
         try {
             $del = $conn->prepare("DELETE FROM pagos WHERE id = ?");
             $del->bind_param('i', $pago['id']);
             $del->execute();
+            $notaCheque = $pago['idCheque'] ? despuesDeBorrarPagoCheque($conn, $pago, $_POST['motivo']) : null;
             recalcularPagosPedido($conn, (int)$pago['idPedido']);
             registrarModificacion($conn, 'pago', $pago['id'], $pago['idPedido'], 'borrar',
-                                  describirPago($pago), null, $_POST['motivo']);
+                                  describirPago($pago) . ($notaCheque ? " ($notaCheque)" : ''),
+                                  null, $_POST['motivo']);
             mysqli_commit($conn);
             echo "✅ Pago eliminado.";
         } catch (Exception $e) {
@@ -362,6 +412,10 @@ switch ($opcion) {
         }
         if (abs($monto) < 0.01) {
             echo "El monto del ajuste no puede ser cero.";
+            break;
+        }
+        if (esMedioCheques($conn, $idMedioPago)) {
+            echo "Los ajustes no se pueden hacer en cheques: elegí otro medio.";
             break;
         }
         $pedido = cargarPedido($conn, $idPedido);
@@ -449,6 +503,11 @@ switch ($opcion) {
         }
         if (fechaEnCajaCerrada($conn, $mov['fecha'], $mov['idMedioOrigen']) || fechaEnCajaCerrada($conn, $mov['fecha'], $mov['idMedioDestino'])) {
             echo "Ese movimiento ya quedó en un cierre: cargá un movimiento al revés para corregirlo.";
+            break;
+        }
+        // depósito de un cheque, o su reversión por rechazo: se manejan desde Finanzas → Cheques
+        if (mysqli_fetch_row(mysqli_query($conn, "SELECT id FROM cheques WHERE idMovimiento = $id")) || strpos($mov['nota'], 'Cheque #') === 0) {
+            echo "Es un movimiento de un cheque: se maneja desde Finanzas → Cheques.";
             break;
         }
 
