@@ -1,18 +1,27 @@
 <?php
-// Cheques (físicos y echeqs), ver sql/2026-11-25_cheques.sql.
-// - Un cheque ENTRA con un pago (medio "cheques") de una venta: se cargan sus datos, o se elige uno
-//   que ya tenemos si el mismo cheque paga varios pedidos. Lo entrega el cliente del pedido.
+// Cheques (físicos y echeqs), ver sql/2026-11-25_cheques.sql y sql/2026-11-26_cheques_canje.sql.
+// Un cheque no depende de un pedido: el saldo del medio "cheques" en la caja tiene que ser lo que hay
+// en cartera, así que cada entrada y salida mueve plata de cheques (pago o movimiento entre medios).
+// - ENTRA (cheques.origen):
+//     pago:    con un pago (medio "cheques") de una venta: se cargan sus datos, o se elige uno que ya
+//              tenemos si el mismo cheque paga varios pedidos. Lo entrega el cliente del pedido.
+//     canje:   un contacto nos da el cheque y le damos el MISMO monto en otro medio (siempre el monto
+//              entero): movimiento medio → cheques (idMovimientoEntrada).
+//     inicial: ya estaba en la imprenta (carga inicial, solo administradores): no mueve plata.
 // - SALE (estado "entregado"): con un pago de una COMPRA en cheques (se le da al proveedor de la
-//   compra), desde la página Cheques entregándolo a un contacto, o depositándolo en un medio
-//   (movimiento entre medios cheques → banco).
+//   compra), depositándolo en un medio (movimiento cheques → banco), o canjeándolo con un contacto
+//   que nos da el mismo monto en otro medio (movimiento cheques → medio; idContactoDestino +
+//   idMedioDestino + idMovimiento).
 // - Si se RECHAZA, los pagos hechos con él se revierten con pagos negativos de hoy: el cliente
-//   vuelve a deber (y en una compra, volvemos a deberle al proveedor). Si estaba depositado, se
-//   revierte también el depósito.
+//   vuelve a deber (y en una compra, volvemos a deberle al proveedor). Si salió por depósito o
+//   canje, se revierte ese movimiento. Si entró por canje o carga inicial, se puede indicar en qué
+//   medio nos devolvieron la plata (movimiento cheques → medio); si no, queda faltando en cheques.
 // Desde los formularios los datos llegan en $_POST['cheque'].
 // Usa registrarModificacion() de auditoria.php.
 
 const ESTADOS_CHEQUE = ['tenemos' => 'En cartera', 'entregado' => 'Entregado', 'rechazado' => 'Rechazado'];
 const TIPOS_CHEQUE   = ['fisico' => 'Físico', 'echeq' => 'Echeq'];
+const ORIGENES_CHEQUE = ['pago' => 'Cobro de un pedido', 'canje' => 'Canje', 'inicial' => 'Carga inicial'];
 const TIPO_PEDIDO_COMPRA = 2;
 const DIAS_VALIDEZ_CHEQUE = 30;   // se puede presentar hasta 30 días después de su fecha de pago
 
@@ -29,15 +38,59 @@ function esMedioCheques($conn, $idMedio) {
     return idMedioCheques($conn) > 0 && (int)$idMedio === idMedioCheques($conn);
 }
 
+// Medios de la caja a los que (o desde los que) puede ir la plata de un cheque: todos menos cheques.
+function mediosParaCheque($conn) {
+    $medios = [];
+    $res = mysqli_query($conn, "SELECT mp.id, mp.medio FROM mediosPago mp INNER JOIN cierreMedios cm ON cm.idMedio = mp.id
+                                WHERE mp.visible = 1 ORDER BY mp.id");
+    while ($m = mysqli_fetch_assoc($res)) {
+        if (!esMedioCheques($conn, $m['id'])) $medios[(int)$m['id']] = $m['medio'];
+    }
+    return $medios;
+}
+
+// Movimiento entre medios de un cheque (la nota empieza con "Cheque #": no se borra desde la caja).
+function movimientoCheque($conn, $idOrigen, $idDestino, $monto, $idCheque, $texto, $idUsuario) {
+    $nota = textoCorto("Cheque #$idCheque: $texto", 255);
+    $stmt = $conn->prepare("INSERT INTO movimientosMedios (fecha, idMedioOrigen, idMedioDestino, monto, nota, idUsuario)
+                            VALUES (NOW(), ?, ?, ?, ?, ?)");
+    $stmt->bind_param('iidsi', $idOrigen, $idDestino, $monto, $nota, $idUsuario);
+    $stmt->execute();
+    return (int)$conn->insert_id;
+}
+
+// Saldo calculado del medio cheques en la caja abierta (como en Cierre de Caja).
+function saldoCajaCheques($conn) {
+    $idM = idMedioCheques($conn);
+    $cm = mysqli_fetch_assoc(mysqli_query($conn, "SELECT fechaUC, montoUC FROM cierreMedios WHERE idMedio = $idM"));
+    if (!$cm) return null;
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(CASE WHEN pe.idTipoPedido = " . TIPO_PEDIDO_COMPRA . " THEN -p.monto ELSE p.monto END), 0)
+                            FROM pagos p INNER JOIN pedidos pe ON pe.id = p.idPedido
+                            WHERE p.idMedioPago = ? AND p.fecha >= ?");
+    $stmt->bind_param('is', $idM, $cm['fechaUC']);
+    $stmt->execute();
+    $pagos = (float)$stmt->get_result()->fetch_row()[0];
+    $mov = movimientosCajaAbierta($conn)[$idM]['neto'] ?? 0;
+    return ['fechaUC' => $cm['fechaUC'], 'montoUC' => (float)$cm['montoUC'], 'saldo' => round((float)$cm['montoUC'] + $pagos + $mov, 2)];
+}
+
+// Cómo salió un cheque entregado: [texto corto, detalle].
+function describirSalida($c, $nombreDestino, $medioDestino) {
+    if ($c['idMedioDestino'] && $c['idContactoDestino']) return ['Canjeado', "a $nombreDestino por $medioDestino"];
+    if ($c['idMedioDestino']) return ['Depositado', "en $medioDestino"];
+    return ['Entregado', 'a ' . ($nombreDestino ?? '?')];
+}
+
 function pedidoEsCompra($conn, $idPedido) {
     $fila = mysqli_fetch_row(mysqli_query($conn, "SELECT idTipoPedido FROM pedidos WHERE id = " . (int)$idPedido));
     return $fila && (int)$fila[0] === TIPO_PEDIDO_COMPRA;
 }
 
 // Lo que queda de un cheque sin asignar a pagos de ventas ($sinPago: no contar ese pago, al editarlo).
-// Los pagos de compras no cuentan: son la salida del cheque, no su entrada.
+// Los pagos de compras no cuentan: son la salida del cheque, no su entrada. Un cheque que entró por
+// canje o carga inicial no tiene nada para asignar (ya está entero en el saldo de cheques).
 function disponibleCheque($conn, $idCheque, $sinPago = 0) {
-    $stmt = $conn->prepare("SELECT c.monto - COALESCE((SELECT SUM(pg.monto) FROM pagos pg
+    $stmt = $conn->prepare("SELECT IF(c.origen <> 'pago', 0, c.monto) - COALESCE((SELECT SUM(pg.monto) FROM pagos pg
                                                         INNER JOIN pedidos pe ON pe.id = pg.idPedido
                                                         WHERE pg.idCheque = c.id AND pg.id <> ?
                                                           AND pe.idTipoPedido <> " . TIPO_PEDIDO_COMPRA . "), 0)
@@ -51,7 +104,7 @@ function disponibleCheque($conn, $idCheque, $sinPago = 0) {
 // Cheques en cartera con lo que les queda sin asignar a ventas.
 function chequesEnCartera($conn) {
     $res = mysqli_query($conn, "SELECT c.id, c.tipo, c.numero, c.banco, c.titular, c.fechaPago, c.monto,
-                                       c.monto - COALESCE(SUM(CASE WHEN pe.idTipoPedido <> " . TIPO_PEDIDO_COMPRA . " THEN pg.monto END), 0) AS disponible
+                                       IF(c.origen <> 'pago', 0, c.monto - COALESCE(SUM(CASE WHEN pe.idTipoPedido <> " . TIPO_PEDIDO_COMPRA . " THEN pg.monto END), 0)) AS disponible
                                 FROM cheques c
                                 LEFT JOIN pagos pg ON pg.idCheque = c.id
                                 LEFT JOIN pedidos pe ON pe.id = pg.idPedido
@@ -220,4 +273,21 @@ function despuesDeBorrarPagoCheque($conn, $pago, $motivo) {
     if ($quedan > 0) return null;
     mysqli_query($conn, "DELETE FROM cheques WHERE id = " . (int)$c['id']);
     return 'se borró el cheque: ' . describirCheque($c) . ' por ' . pesosCheque($c['monto']);
+}
+
+// Pagos de ventas en cheques que no tienen cheque cargado (de antes del 25/11/2026), para asociarlos
+// en la carga inicial. Con $idPago, ese solo (o null).
+function pagosSinCheque($conn, $idPago = 0) {
+    $sql = "SELECT pg.id, pg.fecha, pg.monto, pg.idPedido, pe.idContacto, CONCAT_WS(' ', c.apellido, c.nombre) AS contacto
+            FROM pagos pg
+            INNER JOIN pedidos pe ON pe.id = pg.idPedido
+            LEFT JOIN contactos c ON c.id = pe.idContacto
+            WHERE pg.idMedioPago = " . idMedioCheques($conn) . " AND pg.idCheque IS NULL AND pg.monto > 0
+              AND pe.idTipoPedido <> " . TIPO_PEDIDO_COMPRA . ($idPago ? " AND pg.id = " . (int)$idPago : '') . "
+            ORDER BY pg.fecha DESC LIMIT 100";
+    return mysqli_fetch_all(mysqli_query($conn, $sql), MYSQLI_ASSOC);
+}
+
+function pagoSinCheque($conn, $idPago) {
+    return pagosSinCheque($conn, $idPago)[0] ?? null;
 }

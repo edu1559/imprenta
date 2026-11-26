@@ -18,11 +18,14 @@ $destino = $c['idContactoDestino'] ? nombreContacto($conn, $c['idContactoDestino
 $medioDestino = $c['idMedioDestino'] ? mysqli_fetch_row(mysqli_query($conn, "SELECT medio FROM mediosPago WHERE id = " . (int)$c['idMedioDestino']))[0] : null;
 $porCompra = (bool)array_filter($pagos, fn($p) => (int)$p['idTipoPedido'] === TIPO_PEDIDO_COMPRA && $p['monto'] > 0);
 
-// medios donde se puede depositar (los de caja, menos cheques)
-$medios = [];
-$res = mysqli_query($conn, "SELECT mp.id, mp.medio FROM mediosPago mp INNER JOIN cierreMedios cm ON cm.idMedio = mp.id
-                            WHERE mp.visible = 1 ORDER BY mp.id");
-while ($m = mysqli_fetch_assoc($res)) if (!esMedioCheques($conn, $m['id'])) $medios[] = $m;
+// medios donde se puede depositar o canjear (los de caja, menos cheques)
+$medios = mediosParaCheque($conn);
+$movEntrada = $c['idMovimientoEntrada'] ? mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM movimientosMedios WHERE id = " . (int)$c['idMovimientoEntrada'])) : null;
+$entrada = ORIGENES_CHEQUE[$c['origen']] . ($movEntrada ? ': le dimos ' . pesosCheque($movEntrada['monto']) . ' en ' . ($medios[(int)$movEntrada['idMedioOrigen']] ?? '?') : '');
+
+// historia del cheque (registro de cambios)
+$historia = mysqli_fetch_all(mysqli_query($conn, "SELECT m.*, u.usuario FROM modificaciones m LEFT JOIN usuarios u ON u.id = m.idUsuario
+                                                  WHERE m.entidad = 'cheque' AND m.idEntidad = $id ORDER BY m.fecha, m.id"), MYSQLI_ASSOC);
 
 $h = fn($t) => htmlspecialchars((string)$t);
 $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechazado' => 'bg-danger'][$c['estado']];
@@ -48,11 +51,12 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
         </div>
         <div class="col-md-3"><div class="text-muted">Lo entregó</div><div><?php echo $h($entrego ?? '—'); ?></div>
             <div class="text-muted">cargado el <?php echo date('d/m/Y H:i', strtotime($c['fechaCarga'])); ?></div>
+            <div class="text-muted">entró por: <?php echo $h($entrada); ?></div>
         </div>
         <?php if ($c['estado'] !== 'tenemos'): ?>
         <div class="col-12">
             <div class="alert <?php echo $c['estado'] === 'rechazado' ? 'alert-danger' : 'alert-success'; ?> py-1 mb-0">
-                <?php if ($c['estado'] === 'rechazado'): ?>Rechazado<?php elseif ($medioDestino): ?>Depositado en <strong><?php echo $h($medioDestino); ?></strong><?php else: ?>Entregado a <strong><?php echo $h($destino ?? '?'); ?></strong><?php endif; ?>
+                <?php if ($c['estado'] === 'rechazado'): ?>Rechazado<?php else: [$salida, $detalle] = describirSalida($c, $destino, $medioDestino); ?><?php echo $salida; ?> <strong><?php echo $h($detalle); ?></strong><?php endif; ?>
                 <?php if ($c['fechaEstado']): ?> el <?php echo date('d/m/Y H:i', strtotime($c['fechaEstado'])); ?><?php endif; ?>
             </div>
         </div>
@@ -60,6 +64,7 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
         <?php if ($c['nota'] !== ''): ?><div class="col-12"><span class="text-muted">Nota:</span> <?php echo $h($c['nota']); ?></div><?php endif; ?>
     </div>
 
+    <?php if ($pagos || $c['origen'] === 'pago'): ?>
     <h6 class="border-bottom pb-1">Pagos hechos con este cheque</h6>
     <table class="table table-sm small mb-3">
         <tbody>
@@ -74,16 +79,39 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
         <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endif; ?>
+
+    <?php if ($historia): ?>
+    <h6 class="border-bottom pb-1">Historia</h6>
+    <table class="table table-sm small mb-3">
+        <tbody>
+        <?php foreach ($historia as $m): $dm = describirModificacion($m, $medios); ?>
+            <tr>
+                <td class="text-nowrap"><?php echo date('d/m/Y H:i', strtotime($m['fecha'])); ?></td>
+                <td><i class="bi <?php echo $dm['icono']; ?>"></i> <?php echo $h($dm['texto']); ?>
+                    <?php if ($dm['motivo']): ?><div class="text-muted"><?php echo $h($dm['motivo']); ?></div><?php endif; ?></td>
+                <td class="text-muted"><?php echo $h($m['usuario'] ?? ''); ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
 
     <?php if ($c['estado'] === 'tenemos'): ?>
     <div class="row g-3">
         <div class="col-md-6">
             <div class="card border-success h-100"><div class="card-body p-2">
-                <div class="fw-bold small mb-1"><i class="bi bi-person-check"></i> Entregar a un contacto</div>
-                <div class="small text-muted mb-1">Para pagarle una compra cargada, mejor cargá el pago de la compra con medio cheques.</div>
+                <div class="fw-bold small mb-1"><i class="bi bi-arrow-left-right"></i> Canjear</div>
+                <div class="small text-muted mb-1">Se lo damos a alguien que nos da <?php echo pesosCheque($c['monto']); ?> en otro medio. Para pagar una compra cargada, cargá el pago de la compra con medio cheques.</div>
                 <select id="chqContacto" class="form-select form-select-sm mb-1" style="width:100%"></select>
+                <div class="input-group input-group-sm mb-1">
+                    <span class="input-group-text">Nos da la plata en</span>
+                    <select id="chqMedioCanje" class="form-select form-select-sm">
+                        <?php foreach ($medios as $mid => $m): ?><option value="<?php echo $mid; ?>"><?php echo $h($m); ?></option><?php endforeach; ?>
+                    </select>
+                </div>
                 <input type="text" id="chqNotaEntregar" class="form-control form-control-sm mb-1" maxlength="255" placeholder="Nota (opcional)">
-                <button class="btn btn-success btn-sm w-100" id="btnChqEntregar">Entregar</button>
+                <button class="btn btn-success btn-sm w-100" id="btnChqEntregar">Canjear</button>
             </div></div>
         </div>
         <div class="col-md-6">
@@ -91,7 +119,7 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
                 <div class="fw-bold small mb-1"><i class="bi bi-bank"></i> Depositar</div>
                 <div class="small text-muted mb-1">Pasa <?php echo pesosCheque($c['monto']); ?> de cheques al medio elegido (queda como movimiento entre medios).</div>
                 <select id="chqMedio" class="form-select form-select-sm mb-1">
-                    <?php foreach ($medios as $m): ?><option value="<?php echo $m['id']; ?>"><?php echo $h($m['medio']); ?></option><?php endforeach; ?>
+                    <?php foreach ($medios as $mid => $m): ?><option value="<?php echo $mid; ?>"><?php echo $h($m); ?></option><?php endforeach; ?>
                 </select>
                 <input type="text" id="chqNotaDepositar" class="form-control form-control-sm mb-1" maxlength="255" placeholder="Nota (opcional)">
                 <button class="btn btn-primary btn-sm w-100" id="btnChqDepositar">Depositar</button>
@@ -104,9 +132,21 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
     <div class="d-flex flex-wrap gap-2 mt-3">
         <?php if ($c['estado'] !== 'rechazado'): ?>
             <button class="btn btn-outline-danger btn-sm" id="btnChqRechazar"><i class="bi bi-x-octagon"></i> Rechazado</button>
+            <?php if ($c['origen'] !== 'pago'): ?>
+            <div class="input-group input-group-sm" style="width:auto" title="Si el cheque rebota, quien nos lo dio nos devuelve la plata">
+                <span class="input-group-text">al rechazar, nos devolvieron la plata en</span>
+                <select id="chqMedioDevolucion" class="form-select form-select-sm">
+                    <option value="">todavía no</option>
+                    <?php foreach ($medios as $mid => $m): ?><option value="<?php echo $mid; ?>"><?php echo $h($m); ?></option><?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
         <?php endif; ?>
         <?php if ($c['estado'] === 'entregado' && !$porCompra): ?>
             <button class="btn btn-outline-warning btn-sm" id="btnChqVolver"><i class="bi bi-arrow-counterclockwise"></i> Volver a cartera</button>
+        <?php endif; ?>
+        <?php if ($c['estado'] === 'tenemos' && $c['origen'] !== 'pago' && !$pagos): ?>
+            <button class="btn btn-outline-danger btn-sm" id="btnChqBorrar"><i class="bi bi-trash"></i> Borrar (cargado por error)</button>
         <?php endif; ?>
         <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#panelChqEditar"><i class="bi bi-pencil"></i> Corregir datos</button>
     </div>
@@ -127,7 +167,7 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
                 <div class="col-md-5"><label>Titular</label><input class="form-control form-control-sm" id="edChTitular" maxlength="100" value="<?php echo $h($c['titular']); ?>"></div>
                 <div class="col-md-3"><label>CUIT titular</label><input class="form-control form-control-sm" id="edChCuit" maxlength="20" value="<?php echo $h($c['cuitTitular']); ?>"></div>
                 <div class="col-md-4"><label>Nota</label><input class="form-control form-control-sm" id="edChNota" maxlength="255" value="<?php echo $h($c['nota']); ?>"></div>
-                <div class="col-12 text-muted">El monto no se corrige acá: está atado a los pagos. Si está mal, borrá el pago y cargalo de nuevo.</div>
+                <div class="col-12 text-muted">El monto no se corrige acá: está atado a los pagos o al canje. Si está mal, borrá el pago (o el cheque, si fue canje o carga inicial) y cargalo de nuevo.</div>
                 <div class="col-12 text-end"><button class="btn btn-secondary btn-sm" id="btnChqEditar">Guardar corrección</button></div>
             </div>
         </div>
@@ -181,10 +221,11 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
 
     $('#btnChqEntregar').click(function() {
         let idContacto = $('#chqContacto').val();
-        if (!idContacto) { alert('Elegí a quién se le entrega.'); return; }
+        if (!idContacto) { alert('Elegí a quién se le entrega el cheque.'); return; }
         if (!confirmarSinAsignar()) return;
-        if (!confirm('¿Entregar el cheque a ' + $('#chqContacto option:selected').text() + '?')) return;
-        enviar({ opcion: 'entregar', idContacto: idContacto, nota: $('#chqNotaEntregar').val() }, $(this));
+        if (!confirm('¿Canjear el cheque con ' + $('#chqContacto option:selected').text() + '?\n\nEntran <?php echo pesosCheque($c['monto']); ?> en ' +
+                     $('#chqMedioCanje option:selected').text() + ' (movimiento entre medios).')) return;
+        enviar({ opcion: 'canjear', idContacto: idContacto, idMedio: $('#chqMedioCanje').val(), nota: $('#chqNotaEntregar').val() }, $(this));
     });
 
     $('#btnChqDepositar').click(function() {
@@ -194,15 +235,24 @@ $colorEstado = ['tenemos' => 'bg-primary', 'entregado' => 'bg-success', 'rechaza
     });
 
     $('#btnChqRechazar').click(function() {
-        let motivo = pedirMotivo('Vas a marcar el cheque #' + ID + ' como RECHAZADO.\n' +
-            'Los pagos hechos con él se revierten (los pedidos vuelven a tener deuda)' +
-            '<?php echo $c['idMovimiento'] ? ' y se revierte el depósito' : ''; ?>.');
-        if (motivo) enviar({ opcion: 'rechazar', motivo: motivo }, $(this));
+        let devolucion = $('#chqMedioDevolucion').val() || '';
+        let texto = <?php echo $c['origen'] === 'pago'
+            ? "'Los pagos hechos con él se revierten (los pedidos vuelven a tener deuda)'"
+            : "(devolucion ? 'Entra lo que nos devolvieron en ' + $('#chqMedioDevolucion option:selected').text()
+                           : 'Todavía no nos devolvieron la plata: va a faltar en cheques en el cierre de caja')"; ?>;
+        let motivo = pedirMotivo('Vas a marcar el cheque #' + ID + ' como RECHAZADO.\n' + texto +
+            '<?php echo $c['idMovimiento'] ? ($c['idContactoDestino'] ? ' y se revierte el canje (le devolvemos la plata)' : ' y se revierte el depósito') : ''; ?>.');
+        if (motivo) enviar({ opcion: 'rechazar', motivo: motivo, idMedioDevolucion: devolucion }, $(this));
     });
 
     $('#btnChqVolver').click(function() {
-        let motivo = pedirMotivo('El cheque #' + ID + ' vuelve a cartera<?php echo $c['idMovimiento'] ? ' y se borra el movimiento del depósito' : ''; ?>.');
+        let motivo = pedirMotivo('El cheque #' + ID + ' vuelve a cartera<?php echo $c['idMovimiento'] ? ' y se borra el movimiento del ' . ($c['idContactoDestino'] ? 'canje' : 'depósito') : ''; ?>.');
         if (motivo) enviar({ opcion: 'volverCartera', motivo: motivo }, $(this));
+    });
+
+    $('#btnChqBorrar').click(function() {
+        let motivo = pedirMotivo('Vas a BORRAR el cheque #' + ID + '<?php echo $c['idMovimientoEntrada'] ? ' y el movimiento del canje (vuelve la plata que le dimos)' : ''; ?>.');
+        if (motivo) enviar({ opcion: 'borrar', motivo: motivo }, $(this));
     });
 
     $('#btnChqEditar').click(function() {

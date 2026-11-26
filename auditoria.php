@@ -289,6 +289,14 @@ function describirModificacion($m, $medios = []) {
             $d = ['importante' => false] + $d;
             $d += ['icono' => 'bi-person-check text-success', 'texto' => "Cheque #{$m['idEntidad']} entregado " . $despues];
             break;
+        case 'cheque/ingresar':
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-box-arrow-in-down text-primary', 'texto' => "Cheque #{$m['idEntidad']} ingresado: " . $despues];
+            break;
+        case 'cheque/canjear':
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-arrow-left-right text-success', 'texto' => "Cheque #{$m['idEntidad']} canjeado " . $despues];
+            break;
         case 'cheque/depositar':
             $d = ['importante' => false] + $d;
             $d += ['icono' => 'bi-bank text-primary', 'texto' => "Cheque #{$m['idEntidad']} depositado " . $despues];
@@ -298,6 +306,9 @@ function describirModificacion($m, $medios = []) {
             break;
         case 'cheque/volverCartera':
             $d += ['icono' => 'bi-arrow-counterclockwise text-warning', 'texto' => "Cheque #{$m['idEntidad']} volvió a cartera (estaba $antes)"];
+            break;
+        case 'cheque/borrar':
+            $d += ['icono' => 'bi-trash text-danger', 'texto' => "Cheque #{$m['idEntidad']} borrado: " . $antes];
             break;
         case 'cheque/editar':
             $d += ['icono' => 'bi-pencil-square text-warning', 'texto' => "Cheque #{$m['idEntidad']} corregido: " . $despues];
