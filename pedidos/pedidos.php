@@ -518,7 +518,15 @@ if ($idContactoVer > 0) {
             v_url = 'pedidos/pedidos.php?cadena=' + v_cadena;
          //   alert(v_url);
                 $('#contenido').load(v_url);
-              
+
+    });
+
+    // Enter en el cuadro de búsqueda = botón Buscar
+    $('#buscar').on('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            $('#btnBuscarPedidos').click();
+        }
     });
 
     $('.btnOpciones').click(function() {
