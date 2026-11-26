@@ -307,6 +307,14 @@ function describirModificacion($m, $medios = []) {
         case 'cheque/volverCartera':
             $d += ['icono' => 'bi-arrow-counterclockwise text-warning', 'texto' => "Cheque #{$m['idEntidad']} volvió a cartera (estaba $antes)"];
             break;
+        case 'dolar/cotizacion':
+            $c = json_decode((string)$despues, true) ?: [];
+            $fmt = fn($n) => '$' . number_format((float)$n, 2, ',', '.');
+            $d = ['importante' => false] + $d;
+            $d += ['icono' => 'bi-currency-dollar text-success',
+                   'texto' => 'Cotización del dólar: ' . ($antes !== null ? $fmt($antes) . ' → ' : '') . $fmt($c['valor'] ?? 0)
+                            . (!empty($c['compra']) && !empty($c['venta']) ? ' (compra ' . $fmt($c['compra']) . ' / venta ' . $fmt($c['venta']) . ')' : '')];
+            break;
         case 'cheque/borrar':
             $d += ['icono' => 'bi-trash text-danger', 'texto' => "Cheque #{$m['idEntidad']} borrado: " . $antes];
             break;

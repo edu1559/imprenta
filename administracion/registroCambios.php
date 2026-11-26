@@ -22,7 +22,7 @@ $grupos = [
     'cobrado'     => ['Cerrados como «ya estaba cobrado»', "m.entidad = 'pedido' AND m.accion = 'regularizar' AND m.motivo = '" . MOTIVO_YA_COBRADO . "'"],
     'anulaciones' => ['Anulados y reabiertos', "m.entidad = 'pedido' AND m.accion IN ('anular', 'reabrir') AND NOT $esLimpieza"],
     'web'         => ['Pedidos web', "m.accion IN ('aprobarWeb', 'rechazarWeb')"],
-    'caja'        => ['Cierres de caja y movimientos', "m.entidad IN ('cierre', 'movimiento')"],
+    'caja'        => ['Cierres de caja, movimientos y cotización', "m.entidad IN ('cierre', 'movimiento', 'dolar')"],
     'cheques'     => ['Cheques', "m.entidad = 'cheque' OR m.accion = 'rechazoCheque'"],
     'limpieza'    => ['Limpieza de datos', $esLimpieza],
 ];

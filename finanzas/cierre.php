@@ -3,7 +3,13 @@ include_once(__DIR__ . '/../sesion.php');
 exigirTrabajadorPagina();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
+include_once(__DIR__ . '/../dolares.php');
 $conn = conectar();
+// Dólares: se cuentan en US$ y se valúan con la cotización vigente (ver dolares.php)
+$dol = estadoDolares($conn);
+$idDolares = idMedioDolares($conn);
+$historialCotiz = mysqli_fetch_all(mysqli_query($conn, "SELECT c.*, u.usuario FROM cotizacionesDolar c LEFT JOIN usuarios u ON u.id = c.idUsuario
+                                                        ORDER BY c.fecha DESC, c.id DESC LIMIT 5"), MYSQLI_ASSOC);
 
 // 1. Obtener Medios de Pago Activos
 $medioPago = array();
@@ -93,6 +99,8 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                             <tbody>
                                 <?php foreach ($cierre as $id => $v):
                                     $deberiaHaber = $v['montoUC'] + $v['montoCalculado'];
+                                    $esDolares = $dol && $id === $idDolares;
+                                    if ($esDolares) $deberiaHaber = $dol['pesos'];
                                     $signo = ($v['montoCalculado'] >= 0) ? '+$' : '-$';
                                     $valorMostrar = abs($v['montoCalculado']);
                                     // cerrado hoy y sin movimientos desde entonces
@@ -106,7 +114,9 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="dato"><?php echo date('d/m/y', strtotime($v['fechaUC'])); ?></td>
-                                    <td class="text-end dato">$<?php echo number_format($v['montoUC'], 0, ',', '.'); ?></td>
+                                    <td class="text-end dato">$<?php echo number_format($v['montoUC'], 0, ',', '.'); ?>
+                                        <?php if ($esDolares): ?><div class="small text-muted"><?php echo usdTexto($dol['usdUC']); ?> a <?php echo cotizacionTexto($dol['cotizacionUC']); ?></div><?php endif; ?>
+                                    </td>
                                     <td class="text-center"><span class="badge bg-secondary rounded-pill"><?php echo $v['cantOp']; ?></span></td>
                                     <td class="text-end dato">
                                         <?php echo $signo . number_format($valorMostrar, 0, ',', '.'); ?>
@@ -115,9 +125,33 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                                 <i class="bi bi-arrow-left-right"></i> <?php echo ($v['netoMov'] > 0 ? '+$' : '-$') . number_format(abs($v['netoMov']), 0, ',', '.'); ?>
                                             </div>
                                         <?php endif; ?>
+                                        <?php if ($esDolares && abs($dol['usdMov']) > 0.009): ?>
+                                            <div class="small text-info"><?php echo ($dol['usdMov'] > 0 ? '+' : '-') . usdTexto(abs($dol['usdMov'])); ?></div>
+                                        <?php endif; ?>
                                     </td>
-                                    <td class="text-end saldo text-primary">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?></td>
+                                    <td class="text-end saldo text-primary">$<?php echo number_format($deberiaHaber, 0, ',', '.'); ?>
+                                        <?php if ($esDolares): ?>
+                                            <div class="small text-muted fw-normal"><?php echo usdTexto($dol['usd']); ?> a <?php echo cotizacionTexto($dol['cotizacion']); ?></div>
+                                            <?php if (abs($dol['difCotizacion']) >= 1): ?>
+                                                <div class="small fw-normal <?php echo $dol['difCotizacion'] > 0 ? 'text-success' : 'text-danger'; ?>"
+                                                     title="Lo que cambió el valor en pesos por la cotización nueva. No es faltante ni sobrante: no entra en la diferencia.">
+                                                    por cotización <?php echo ($dol['difCotizacion'] > 0 ? '+$' : '-$') . number_format(abs($dol['difCotizacion']), 0, ',', '.'); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td style="width: 190px;">
+                                        <?php if ($esDolares): ?>
+                                        <div class="input-group input-group-sm" title="Dólares contados">
+                                            <span class="input-group-text">US$</span>
+                                            <input type="text" inputmode="decimal" class="form-control inpMontoReal fw-bold text-success text-end"
+                                                   data-id="<?php echo $id; ?>"
+                                                   data-calculado="<?php echo $deberiaHaber; ?>"
+                                                   data-cotizacion="<?php echo $dol['cotizacion']; ?>"
+                                                   data-usd="<?php echo $dol['usd']; ?>"
+                                                   value="<?php echo number_format($dol['usd'], 2, ',', '.'); ?>">
+                                        </div>
+                                        <?php else: ?>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">$</span>
                                             <input type="text" inputmode="numeric" class="form-control inpMontoReal fw-bold text-success text-end"
@@ -125,6 +159,7 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                                                    data-calculado="<?php echo $deberiaHaber; ?>"
                                                    value="<?php echo number_format($deberiaHaber, 0, ',', '.'); ?>">
                                         </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="text-end fw-bold diferencia text-muted">$0</td>
                                     <td class="text-end">
@@ -196,6 +231,27 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                     <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalEfectivo">Abrir Planilla</button>
                 </div>
             </div>
+            <?php if ($dol): ?>
+            <div class="card border-0 shadow-sm mb-4 bg-success bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="mb-2 text-center"><i class="bi bi-currency-dollar text-success me-1"></i>Dólares</h6>
+                    <div class="d-flex justify-content-between small"><span>Tenemos</span><strong><?php echo usdTexto($dol['usd']); ?></strong></div>
+                    <div class="d-flex justify-content-between small"><span>Cotización</span><strong><?php echo cotizacionTexto($dol['cotizacion']); ?></strong></div>
+                    <div class="d-flex justify-content-between small"><span>En pesos</span><strong>$<?php echo number_format($dol['pesos'], 0, ',', '.'); ?></strong></div>
+                    <?php if ($dol['cotizacionFila']): $cf = $dol['cotizacionFila']; ?>
+                        <div class="small text-muted mt-1">
+                            Cotización del <?php echo date('d/m/Y H:i', strtotime($cf['fecha'])); ?><?php echo $cf['usuario'] ? ' (' . htmlspecialchars($cf['usuario']) . ')' : ''; ?>
+                            <?php if ($cf['compra'] !== null && $cf['venta'] !== null): ?><br>compra <?php echo cotizacionTexto($cf['compra']); ?> / venta <?php echo cotizacionTexto($cf['venta']); ?><?php endif; ?>
+                            <?php if ($cf['nota'] !== ''): ?><br><?php echo htmlspecialchars($cf['nota']); ?><?php endif; ?>
+                        </div>
+                        <?php if (date('Y-m-d', strtotime($cf['fecha'])) < date('Y-m-d')): ?>
+                            <div class="small text-warning fw-bold">No es de hoy: actualizala antes de cerrar.</div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    <button class="btn btn-success btn-sm w-100 mt-2" data-bs-toggle="modal" data-bs-target="#modalCotizacion">Actualizar cotización</button>
+                </div>
+            </div>
+            <?php endif; ?>
             <div id="panelDetalleMovimientos" class="card border-0 shadow-sm" style="display:none;">
                 <div class="card-header bg-warning text-dark fw-bold d-flex justify-content-between">
                     <span>Detalle: <span id="nombreMedioDetalle"></span></span>
@@ -235,14 +291,14 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
                 </div>
                 <div id="movDolares" class="row g-2 mb-2" style="display:none;">
                     <div class="col">
-                        <label class="form-label small mb-1">Dólares (US$)</label>
-                        <input type="text" inputmode="decimal" id="movUsd" class="form-control text-end" placeholder="opcional">
+                        <label class="form-label small fw-bold mb-1">Dólares (US$)</label>
+                        <input type="text" inputmode="decimal" id="movUsd" class="form-control text-end" placeholder="obligatorio">
                     </div>
                     <div class="col">
                         <label class="form-label small mb-1">Cotización ($ por US$)</label>
-                        <input type="text" inputmode="decimal" id="movCotiz" class="form-control text-end" placeholder="opcional">
+                        <input type="text" inputmode="decimal" id="movCotiz" class="form-control text-end" placeholder="la de la operación">
                     </div>
-                    <div class="col-12 small text-muted">En dólares se registra lo que valen en pesos (el monto de arriba). US$ y cotización quedan como dato.</div>
+                    <div class="col-12 small text-muted">Los dólares se llevan en US$: cargá cuántos se compraron o vendieron y a qué cotización (el monto en pesos se calcula solo).</div>
                 </div>
                 <label class="form-label small fw-bold mb-1">Nota</label>
                 <input type="text" id="movNota" class="form-control" maxlength="255" placeholder="Ej: retiro cajero, compra de dólares">
@@ -250,6 +306,59 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnGuardarMovimiento">Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+        <div class="modal fade" id="modalCotizacion" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-currency-dollar me-1"></i>Cotización del dólar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Dólar oficial del día: se toma el promedio entre compra y venta.</p>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small fw-bold mb-1">Compra $</label>
+                        <input type="text" inputmode="decimal" id="cotCompra" class="form-control text-end">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-bold mb-1">Venta $</label>
+                        <input type="text" inputmode="decimal" id="cotVenta" class="form-control text-end">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-bold mb-1">Promedio $</label>
+                        <input type="text" id="cotValor" class="form-control text-end fw-bold" readonly>
+                    </div>
+                </div>
+                <label class="form-label small fw-bold mb-1">Nota</label>
+                <input type="text" id="cotNota" class="form-control mb-2" maxlength="255" placeholder="Opcional (ej: Banco Nación)">
+                <?php if ($dol): ?>
+                    <div class="small" id="cotEfecto" data-usd="<?php echo $dol['usd']; ?>" data-pesos="<?php echo $dol['pesos']; ?>"></div>
+                <?php endif; ?>
+                <?php if ($historialCotiz): ?>
+                    <table class="table table-sm small mt-2 mb-0">
+                        <thead><tr><th>Fecha</th><th class="text-end">Compra</th><th class="text-end">Venta</th><th class="text-end">Cotización</th><th>Usuario</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($historialCotiz as $c): ?>
+                            <tr title="<?php echo htmlspecialchars($c['nota']); ?>">
+                                <td><?php echo date('d/m/y H:i', strtotime($c['fecha'])); ?></td>
+                                <td class="text-end"><?php echo $c['compra'] !== null ? cotizacionTexto($c['compra']) : '—'; ?></td>
+                                <td class="text-end"><?php echo $c['venta'] !== null ? cotizacionTexto($c['venta']) : '—'; ?></td>
+                                <td class="text-end fw-bold"><?php echo cotizacionTexto($c['valor']); ?></td>
+                                <td><?php echo htmlspecialchars($c['usuario'] ?? ''); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnGuardarCotizacion">Guardar</button>
             </div>
         </div>
     </div>
@@ -277,11 +386,25 @@ while ($row = mysqli_fetch_assoc($resCierre)) {
 // Saldo Real se muestra como los demás montos (1.234.567). Mientras no lo cambien,
 // vale lo calculado con sus centavos, así no aparece una diferencia que nadie contó.
 function saldoReal($inp) {
+    if ($inp.data('cotizacion')) return Math.round(usdReal($inp) * parseFloat($inp.data('cotizacion')) * 100) / 100;
     let texto = $inp.val().trim();
     if (texto === $inp.data('mostrado')) return parseFloat($inp.data('calculado'));
     return parseFloat(texto.replace(/\./g, '').replace(',', '.')) || 0;
 }
+// dólares: la fila de dolares se cuenta en US$ (mientras no lo cambien, valen los calculados)
+function usdReal($inp) {
+    let texto = $inp.val().trim();
+    if (texto === $inp.data('mostrado')) return parseFloat($inp.data('usd'));
+    return numeroAR(texto);
+}
 function mostrarSaldoReal($inp) {
+    if ($inp.data('cotizacion')) {
+        let usd = usdReal($inp);
+        $inp.val(usd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        if (Math.abs(usd - parseFloat($inp.data('usd'))) > 0.009) $inp.data('mostrado', null);
+        mostrarDiferencia($inp);
+        return;
+    }
     let valor = saldoReal($inp);
     $inp.val(Math.round(valor).toLocaleString('es-AR'));
     if (Math.round(valor) !== Math.round(parseFloat($inp.data('calculado')))) $inp.data('mostrado', null);
@@ -317,12 +440,15 @@ $('.btnCerrarParcial').click(function() {
     let v_montoCalculado = $row.find('.inpMontoReal').data('calculado'); // Lo que el sistema dice
     let v_montoReal = saldoReal($row.find('.inpMontoReal')); // Lo que el usuario contó
 
-    if(confirm('¿Confirmas el cierre PARCIAL de este medio con un saldo de $' + Math.round(v_montoReal).toLocaleString('es-AR') + '?')) {
+    let v_texto = '$' + Math.round(v_montoReal).toLocaleString('es-AR');
+    if ($row.find('.inpMontoReal').data('cotizacion')) v_texto = 'US$ ' + usdReal($row.find('.inpMontoReal')).toLocaleString('es-AR') + ' (' + v_texto + ')';
+    if(confirm('¿Confirmas el cierre PARCIAL de este medio con un saldo de ' + v_texto + '?')) {
         $.post('finanzas/ajaxCierre.php', {
             opcion: 'cierre',
             idMedio: v_idMedio,
             montoCalculado: v_montoCalculado,
-            montoReal: v_montoReal
+            montoReal: v_montoReal,
+            usdReal: $row.find('.inpMontoReal').data('cotizacion') ? usdReal($row.find('.inpMontoReal')) : ''
         }, function(respuesta) {
             alert(respuesta);
             // Recargamos el tablero para ver la nueva "Fecha Últ. Cierre" y los montos en cero
@@ -367,10 +493,12 @@ $('#btnCerrarTodos').click(function() {
         let real = saldoReal($(this).find('.inpMontoReal'));
 
         if (idMedio) {
+            let $inp = $(this).find('.inpMontoReal');
             datosCierre.push({
                 id: idMedio,
                 calc: calculado,
-                real: real
+                real: real,
+                usd: $inp.data('cotizacion') ? usdReal($inp) : null
             });
             sumaTotalReal += real;
         }
@@ -411,6 +539,7 @@ $('#btnGuardarMovimiento').click(function() {
     let monto = numeroAR($('#movMonto').val());
     if (origen === destino) { alert('El origen y el destino tienen que ser distintos.'); return; }
     if (monto <= 0) { alert('Falta el monto.'); return; }
+    if ($('#movDolares').is(':visible') && !(numeroAR($('#movUsd').val()) > 0)) { alert('Faltan los dólares (US$).'); return; }
     let texto = 'Pasar $' + monto.toLocaleString('es-AR') + ' de ' + $('#movOrigen option:selected').text()
               + ' a ' + $('#movDestino option:selected').text() + '?';
     if (!confirm(texto)) return;
@@ -435,5 +564,52 @@ $('#btnGuardarMovimiento').click(function() {
             $btn.prop('disabled', false);
         }
     });
+});
+
+// ---- Cotización del dólar ----
+function mostrarPromedioCotizacion() {
+    let compra = numeroAR($('#cotCompra').val()), venta = numeroAR($('#cotVenta').val());
+    let valor = compra > 0 && venta > 0 ? (compra + venta) / 2 : 0;
+    $('#cotValor').val(valor ? valor.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '');
+    let $ef = $('#cotEfecto');
+    if (!$ef.length) return;
+    if (!valor) { $ef.text(''); return; }
+    let pesos = parseFloat($ef.data('usd')) * valor, dif = pesos - parseFloat($ef.data('pesos'));
+    $ef.html('Los US$ ' + parseFloat($ef.data('usd')).toLocaleString('es-AR') + ' pasan a valer <strong>$' + Math.round(pesos).toLocaleString('es-AR') +
+             '</strong> (' + (dif >= 0 ? '+' : '-') + '$' + Math.abs(Math.round(dif)).toLocaleString('es-AR') + ' por cotización).');
+}
+$('#cotCompra, #cotVenta').on('input', mostrarPromedioCotizacion);
+$('#btnGuardarCotizacion').click(function() {
+    let compra = numeroAR($('#cotCompra').val()), venta = numeroAR($('#cotVenta').val());
+    if (!(compra > 0) || !(venta > 0)) { alert('Cargá la compra y la venta.'); return; }
+    if (compra > venta) { alert('La compra no puede ser mayor que la venta.'); return; }
+    let $btn = $(this).prop('disabled', true);
+    let datos = { opcion: 'cotizacion', compra: compra, venta: venta, nota: $('#cotNota').val() };
+    let enviar = function() {
+        $.post('finanzas/ajaxCierre.php', datos, function(res) {
+            if (res.trim() === 'CONFIRMAR') {
+                if (confirm('La cotización cambia más de un 30% respecto de la anterior. ¿Es correcta?')) {
+                    datos.confirmado = 1;
+                    enviar();
+                } else {
+                    $btn.prop('disabled', false);
+                }
+                return;
+            }
+            alert(res);
+            if (res.indexOf('✅') === 0) {
+                $('#modalCotizacion').modal('hide');
+                $('.modal-backdrop').remove();
+                $('body').removeClass('modal-open').css('overflow', '');
+                $('#contenido').load('finanzas/cierre.php');
+            } else {
+                $btn.prop('disabled', false);
+            }
+        }).fail(function() {
+            alert('Error del servidor: no se guardó.');
+            $btn.prop('disabled', false);
+        });
+    };
+    enviar();
 });
 </script>

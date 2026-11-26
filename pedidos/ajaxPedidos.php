@@ -3,6 +3,7 @@ session_start();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
 include_once(__DIR__ . '/../cheques.php');
+include_once(__DIR__ . '/../dolares.php');
 $conn = conectar();
 
 // El panel de pedidos es solo para trabajadores: sin sesión no se graba nada.
@@ -70,6 +71,10 @@ switch ($opcion){
         // Sin monto todavía (presupuesto a cotizar) se respeta lo elegido.
         if ((float)$monto > 0) {
             $idEstadoPago = calcularEstadoPago((float)$monto, (float)$montoPagado);
+        }
+        if ((float)$montoPagado > 0 && esMedioDolares($conn, $idMedioPago)) {
+            echo "❌ " . MENSAJE_PAGO_DOLARES;
+            break;
         }
         // seña con cheque: se valida antes de grabar el pedido
         $cheque = null;
@@ -251,6 +256,11 @@ case 'cerrarPedido':
     }
 
     // "Cobrado ahora": el saldo entra hoy con el medio elegido
+    if ($saldo > 0.1 && esMedioDolares($conn, $idMedio)) {
+        mysqli_rollback($conn);
+        echo "❌ " . MENSAJE_PAGO_DOLARES;
+        break;
+    }
     if ($saldo > 0.1 && esMedioCheques($conn, $idMedio)) {
         mysqli_rollback($conn);
         echo "❌ El saldo se cobra con cheque: cargalo desde el botón de pagos del pedido, con los datos del cheque, y después cerralo.";

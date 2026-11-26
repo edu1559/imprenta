@@ -3,6 +3,7 @@ session_start();
 include_once(__DIR__ . '/../conexion.php');
 include_once(__DIR__ . '/../auditoria.php');
 include_once(__DIR__ . '/../cheques.php');
+include_once(__DIR__ . '/../dolares.php');
 $conn = conectar();
 
 $opcion = $_POST['opcion'] ?? $_GET['opcion'] ?? '';
@@ -24,6 +25,10 @@ switch ($opcion) {
         }
         if (esMedioCheques($conn, $pago['idMedioPago']) || esMedioCheques($conn, $idMedio)) {
             echo "Los pagos con cheque no cambian de medio: borrá el pago y cargalo de nuevo con el medio correcto.";
+            break;
+        }
+        if (esMedioDolares($conn, $idMedio)) {
+            echo MENSAJE_PAGO_DOLARES;
             break;
         }
         if (fechaEnCajaCerrada($conn, $pago['fecha'], $idMedio)) {
@@ -53,14 +58,19 @@ switch ($opcion) {
         $idM = (int)$_POST['idMedio'];
         $montoReal = (float)$_POST['montoReal'];
         $montoCalculado = (float)$_POST['montoCalculado'];
+        [$usdReal, $cotizacion] = [null, null];
+        if (esMedioDolares($conn, $idM)) {
+            [$montoCalculado, $montoReal, $usdReal, $cotizacion] = cierreDolares($conn, $_POST['usdReal'] ?? null);
+        }
         $dif = $montoReal - $montoCalculado;
 
         $anterior = estadoCierreMedios($conn, $idM);
         // la diferencia se acumula hasta el cierre total del día
         $dif += diferenciaAcumulada($conn, $anterior[$idM] ?? null);
 
-        $stmt = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = NOW() WHERE idMedio = ?");
-        $stmt->bind_param('ddi', $montoReal, $dif, $idM);
+        $stmt = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = NOW(),
+                                       usdUC = COALESCE(?, usdUC), cotizacionUC = COALESCE(?, cotizacionUC) WHERE idMedio = ?");
+        $stmt->bind_param('ddddi', $montoReal, $dif, $usdReal, $cotizacion, $idM);
         if ($stmt->execute()) {
             registrarModificacion($conn, 'cierre', $idM, null, 'cierreParcial', json_encode($anterior), (string)$montoReal, 'Cierre parcial');
             echo "Cierre parcial exitoso";
@@ -94,16 +104,24 @@ switch ($opcion) {
             // el medio equivocado se compensa (falta en uno, sobra en otro).
             $totalDif = 0;
 
-            $stmtUpd = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = ? WHERE idMedio = ?");
+            $stmtUpd = $conn->prepare("UPDATE cierreMedios SET montoUC = ?, diferenciaUC = ?, fechaUC = ?,
+                                              usdUC = COALESCE(?, usdUC), cotizacionUC = COALESCE(?, cotizacionUC) WHERE idMedio = ?");
+            [$dolaresUsd, $cotizacionDolar] = [null, null];
             $stmtNombre = $conn->prepare("SELECT medio FROM cierreMedios WHERE idMedio = ?");
 
             foreach ($medios as $m) {
                 $id = (int)$m['id'];
                 $real = (float)$m['real'];
-                $dif = $real - (float)$m['calc'] + diferenciaAcumulada($conn, $estadoAnterior[$id] ?? null);
+                $calc = (float)$m['calc'];
+                [$usdReal, $cotizacion] = [null, null];
+                if (esMedioDolares($conn, $id)) {
+                    [$calc, $real, $usdReal, $cotizacion] = cierreDolares($conn, $m['usd'] ?? null);
+                    [$dolaresUsd, $cotizacionDolar] = [$usdReal, $cotizacion];
+                }
+                $dif = $real - $calc + diferenciaAcumulada($conn, $estadoAnterior[$id] ?? null);
                 $totalDif += $dif;
 
-                $stmtUpd->bind_param('ddsi', $real, $dif, $ahora, $id);
+                $stmtUpd->bind_param('ddsddi', $real, $dif, $ahora, $usdReal, $cotizacion, $id);
                 $stmtUpd->execute();
 
                 $stmtNombre->bind_param('i', $id);
@@ -122,14 +140,16 @@ switch ($opcion) {
             // puede insertar un valor explícito ahí, MySQL calcula sola.
             $cols = array_keys($valoresCierre);
             $placeholders = implode(',', array_fill(0, count($cols), '?'));
-            $sqlHistorial = "INSERT INTO cierre (fecha, " . implode(',', $cols) . ", diferencia, idUsuarioCierre)
-                             VALUES (?, $placeholders, ?, ?)";
+            $sqlHistorial = "INSERT INTO cierre (fecha, " . implode(',', $cols) . ", diferencia, idUsuarioCierre, dolaresUsd, cotizacionDolar)
+                             VALUES (?, $placeholders, ?, ?, ?, ?)";
 
             $stmtHist = $conn->prepare($sqlHistorial);
-            $tipos = 's' . str_repeat('d', count($cols)) . 'di';
+            $tipos = 's' . str_repeat('d', count($cols)) . 'didd';
             $valores = array_merge([$ahora], array_values($valoresCierre));
             $valores[] = $totalDif;
             $valores[] = $idUsuario;
+            $valores[] = $dolaresUsd;
+            $valores[] = $cotizacionDolar;
             $stmtHist->bind_param($tipos, ...$valores);
             $stmtHist->execute();
             $idCierre = $conn->insert_id;
@@ -198,11 +218,15 @@ switch ($opcion) {
 
         mysqli_begin_transaction($conn);
         try {
-            $upd = $conn->prepare("UPDATE cierreMedios SET fechaUC = ?, montoUC = ?, diferenciaUC = ? WHERE idMedio = ?");
+            // usdUC/cotizacionUC: los cierres anteriores a los dólares en US$ no los tienen y quedan como están
+            $upd = $conn->prepare("UPDATE cierreMedios SET fechaUC = ?, montoUC = ?, diferenciaUC = ?,
+                                          usdUC = COALESCE(?, usdUC), cotizacionUC = COALESCE(?, cotizacionUC) WHERE idMedio = ?");
             foreach ($mediosAfectados as $idM) {
                 $previo = $anterior[$idM] ?? null;
                 if (!$previo) continue;
-                $upd->bind_param('sddi', $previo['fechaUC'], $previo['montoUC'], $previo['diferenciaUC'], $idM);
+                $usdPrevio = $previo['usdUC'] ?? null;
+                $cotPrevia = $previo['cotizacionUC'] ?? null;
+                $upd->bind_param('sddddi', $previo['fechaUC'], $previo['montoUC'], $previo['diferenciaUC'], $usdPrevio, $cotPrevia, $idM);
                 $upd->execute();
             }
 
@@ -217,6 +241,50 @@ switch ($opcion) {
         } catch (Exception $e) {
             mysqli_rollback($conn);
             echo "Error: " . $e->getMessage();
+        }
+        break;
+
+    // -------------------------------------------------------------
+    // Cotización del dólar, cargada a mano: oficial, promedio entre compra y venta
+    // (o el valor directo si no se cargan las dos).
+    // -------------------------------------------------------------
+    case 'cotizacion':
+        $compra = round((float)($_POST['compra'] ?? 0), 2);
+        $venta  = round((float)($_POST['venta'] ?? 0), 2);
+        $valor  = round((float)($_POST['valor'] ?? 0), 4);
+        $nota   = textoCorto($_POST['nota'] ?? '', 255);
+        if ($compra > 0 && $venta > 0) {
+            if ($compra > $venta) {
+                echo "❌ La compra no puede ser mayor que la venta.";
+                break;
+            }
+            $valor = round(($compra + $venta) / 2, 4);
+        } else {
+            $compra = $compra > 0 ? $compra : null;
+            $venta  = $venta > 0 ? $venta : null;
+        }
+        if ($valor <= 0) {
+            echo "❌ Falta la cotización.";
+            break;
+        }
+        $antes = cotizacionActual($conn);
+        if ($antes && abs($valor - (float)$antes['valor']) / (float)$antes['valor'] > 0.3 && empty($_POST['confirmado'])) {
+            echo "CONFIRMAR";   // cambia más de un 30%: el formulario pide confirmación
+            break;
+        }
+        mysqli_begin_transaction($conn);
+        try {
+            $stmt = $conn->prepare("INSERT INTO cotizacionesDolar (fecha, compra, venta, valor, nota, idUsuario) VALUES (NOW(), ?, ?, ?, ?, ?)");
+            $stmt->bind_param('dddsi', $compra, $venta, $valor, $nota, $idUsuario);
+            $stmt->execute();
+            $idCot = (int)$conn->insert_id;
+            registrarModificacion($conn, 'dolar', $idCot, null, 'cotizacion', $antes ? (string)$antes['valor'] : null,
+                                  json_encode(['compra' => $compra, 'venta' => $venta, 'valor' => $valor]), $nota !== '' ? $nota : 'Cotización');
+            mysqli_commit($conn);
+            echo "✅ Cotización actualizada: " . cotizacionTexto($valor) . " por dólar.";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "❌ Error: " . $e->getMessage();
         }
         break;
 
@@ -276,6 +344,10 @@ switch ($opcion) {
             break;
         }
 
+        if (esMedioDolares($conn, $idMedioPago)) {
+            echo "❌ " . MENSAJE_PAGO_DOLARES;
+            break;
+        }
         // con cheque: se valida antes de grabar nada
         $cheque = null;
         if (esMedioCheques($conn, $idMedioPago)) {
@@ -323,6 +395,10 @@ switch ($opcion) {
         }
         if ($cambiaMedio && (esMedioCheques($conn, $pago['idMedioPago']) || esMedioCheques($conn, $idMedioPago))) {
             echo "❌ Los pagos con cheque no cambian de medio: borrá el pago y cargalo de nuevo con el medio correcto.";
+            break;
+        }
+        if ($cambiaMedio && esMedioDolares($conn, $idMedioPago)) {
+            echo "❌ " . MENSAJE_PAGO_DOLARES;
             break;
         }
         if ($cambiaMonto && $pago['idCheque'] && pedidoEsCompra($conn, $pago['idPedido'])) {
@@ -418,6 +494,10 @@ switch ($opcion) {
             echo "Los ajustes no se pueden hacer en cheques: elegí otro medio.";
             break;
         }
+        if (esMedioDolares($conn, $idMedioPago)) {
+            echo "Los ajustes no se pueden hacer en dólares: elegí otro medio.";
+            break;
+        }
         $pedido = cargarPedido($conn, $idPedido);
         if (!$pedido || $pedido['anulado']) {
             echo "El pedido está anulado o no existe.";
@@ -472,6 +552,21 @@ switch ($opcion) {
         if ((int)$stmt->get_result()->fetch_row()[0] !== 2) {
             echo "❌ Medio de pago inválido.";
             break;
+        }
+
+        // con dólares los US$ son obligatorios: con ellos se lleva el saldo en US$
+        if (esMedioDolares($conn, $origen) || esMedioDolares($conn, $destino)) {
+            if (!$usd || $usd < 0.01) {
+                echo "❌ Faltan los dólares (US$) del movimiento.";
+                break;
+            }
+            if (esMedioDolares($conn, $origen) && $usd > estadoDolares($conn)['usd'] + 0.009) {
+                echo "❌ No hay tantos dólares: quedan " . usdTexto(estadoDolares($conn)['usd']) . ".";
+                break;
+            }
+            if (!$cotiz) $cotiz = round($monto / $usd, 2);
+        } else {
+            $usd = $cotiz = null;
         }
 
         $stmt = $conn->prepare("INSERT INTO movimientosMedios (fecha, idMedioOrigen, idMedioDestino, monto, usd, cotizacion, nota, idUsuario)
@@ -529,7 +624,7 @@ switch ($opcion) {
 
 // Foto de cierreMedios (uno o todos), indexada por idMedio.
 function estadoCierreMedios($conn, $idMedio = null) {
-    $sql = "SELECT idMedio, fechaUC, montoUC, diferenciaUC FROM cierreMedios";
+    $sql = "SELECT idMedio, fechaUC, montoUC, diferenciaUC, usdUC, cotizacionUC FROM cierreMedios";
     if ($idMedio !== null) $sql .= " WHERE idMedio = " . (int)$idMedio;
     $res = mysqli_query($conn, $sql);
     $estado = [];
@@ -580,4 +675,13 @@ function nombreMedio($conn, $idMedio) {
     $stmt->bind_param('i', $idMedio);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc()['medio'] ?? (string)$idMedio;
+}
+
+// Cierre del medio dolares: se cuentan US$ y se valúan con la cotización vigente, así la
+// diferencia es solo la de los dólares contados (la de cotización no es faltante ni sobrante).
+// $usdReal: US$ contados (null/vacío = los calculados). Devuelve [calculado $, real $, US$, cotización].
+function cierreDolares($conn, $usdReal) {
+    $d = estadoDolares($conn);
+    $usd = ($usdReal === null || $usdReal === '') ? $d['usd'] : round((float)$usdReal, 2);
+    return [$d['pesos'], round($usd * $d['cotizacion'], 2), $usd, $d['cotizacion']];
 }
